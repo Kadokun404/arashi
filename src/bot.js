@@ -65,7 +65,6 @@ housekeepingManager.startScheduler(30);
 import { store } from "./store/store.js";
 import { messageStore } from "./store/make-in-memory-store.js";
 import { pendingGroupJoinManager } from "#manager/group/pending-group-join-manager.js";
-import { ttdl } from "#helper/services/tiktok.js";
 import crmstore from "#store/crmstore.js";
 import { config } from "../config.js";
 // for testing
@@ -86,7 +85,6 @@ global._ = {
     memberLabelStore
 }
 
-global.ttdl = ttdl
 
 
 const startSock = async () => {
