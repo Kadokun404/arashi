@@ -1,8 +1,8 @@
-# Dependencies
+# Dependencies & Locks
 node_modules/
 package-lock.json
 
-# Environment & Secrets
+# Environment Variables & Secrets
 .env
 auth/
 session/
@@ -10,21 +10,13 @@ session/
 *.key
 
 # Temporary files & Caches
-temp/
-cache/
+temp/*
+cache/*
 *.log
 .DS_Store
 
-# Databases & Runtime State (auto-generated on first run)
-data/*.db
-data/*.db-shm
-data/*.db-wal
-data/uptime.json
-data/am-session.json
-data/group-open-close-config.json
-data/chat-manager-config.json
-
-# Keep folders
+# Databases & Runtime State (akan otomatis dibuat saat bot berjalan)
+data/*
 !data/.gitkeep
 !temp/.gitkeep
 !cache/.gitkeep
