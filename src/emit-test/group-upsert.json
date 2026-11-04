@@ -1,0 +1,42 @@
+{
+    "groups.upsert": [
+        {
+            "id": "120363404956702498@g.us",
+            "addressingMode": "pn",
+            "subject": "Test",
+            "subjectTime": 1764226445,
+            "size": 4,
+            "creation": 1764226445,
+            "restrict": false,
+            "announce": false,
+            "isCommunity": false,
+            "isCommunityAnnounce": false,
+            "joinApprovalMode": false,
+            "memberAddMode": true,
+            "participants": [
+                {
+                    "id": "123261853679797@lid",
+                    "phoneNumber": "6285137863155@s.whatsapp.net",
+                    "admin": "admin"
+                },
+                {
+                    "id": "239732877467752@lid",
+                    "phoneNumber": "6285119307169@s.whatsapp.net",
+                    "admin": null
+                },
+                {
+                    "id": "152119235629145@lid",
+                    "phoneNumber": "6281337197336@s.whatsapp.net",
+                    "admin": "admin"
+                },
+                {
+                    "id": "186118632943650@lid",
+                    "phoneNumber": "6281266021317@s.whatsapp.net",
+                    "admin": null
+                }
+            ],
+            "author": "152119235629145@lid",
+            "authorPn": "6281337197336@s.whatsapp.net"
+        }
+    ]
+}

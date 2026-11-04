@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment & Secrets
+.env
+auth/
+session/
+*.pem
+*.key
+
+# Temporary files & Caches
+temp/
+cache/
+*.log
+.DS_Store
+
+# Databases & Runtime State (auto-generated on first run)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/uptime.json
+data/am-session.json
+data/group-open-close-config.json
+data/chat-manager-config.json
+
+# Keep folders
+!data/.gitkeep
+!temp/.gitkeep
+!cache/.gitkeep

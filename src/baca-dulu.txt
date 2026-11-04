@@ -1,0 +1,8 @@
+sc belum selesai
+ubah dulu file config.js yang ada di folder src
+
+lalu jalanin file bot.js di dalem folder src juga
+
+jangan lupa npm i dulu ya
+
+sc by Kadokun, sorry kalauu ada banyak bug :v
