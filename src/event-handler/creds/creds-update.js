@@ -1,4 +1,4 @@
-import { customAuth } from '#root/src/auth.js'
+import { customAuth } from '#core/auth.js'
 import { contactStore } from '#store/contact-store.js'
 import { jidNormalizedUser } from 'baileys'
 

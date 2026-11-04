@@ -4,7 +4,7 @@ import { delay, DisconnectReason } from "baileys";
 import qrTerminal from 'qrcode-terminal'
 
 import { config } from "#root/config.js";
-import { allPaths } from "#root/src/all-paths.js";
+import { allPaths } from "#core/all-paths.js";
 
 const { BOT_PHONE_NUMBER, PAIRING_CODE } = config
 let gotCode = false

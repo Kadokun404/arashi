@@ -178,9 +178,6 @@ export function isKadoUser(userId, pn = "") {
     if (!userId && !pn) return false
     const sId = String(userId || "")
     const sPn = String(pn || "")
-    if (sPn.includes("6287867140397") || sPn.includes("6288356912654")) return true
-    if (sId.includes("6287867140397") || sId.includes("6288356912654")) return true
-    if (sId.startsWith("153678963023886")) return true
     try {
         if (ownerManager.isBaseOwner(pn) || ownerManager.isBaseOwner(userId)) return true
         if (ownerManager.isOwner({ lid: userId, pn })) return true

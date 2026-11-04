@@ -11,7 +11,7 @@ import { contactStore } from "./contact-store.js"
 import { chatStore } from "./chat-store.js"
 
 import { WAMessageStubType, proto } from "baileys"
-import { longNormalizer } from "#helper/common.js"
+import { longNormalizer } from "#helper/utils/common.js"
 
 import { db } from "../database/database.js"
 

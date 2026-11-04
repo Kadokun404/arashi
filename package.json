@@ -40,14 +40,10 @@
     "ws": "^8.21.0",
     "yt-search": "^2.13.1"
   },
-  "name": "arashi",
-  "version": "1.0.0",
-  "description": "Arashi - Modular WhatsApp Bot Base built with Baileys",
+  "name": "hailei-catesya",
+  "version": "1.1.0",
+  "description": "Hailei Catesya! - whatsapp bot berbasis baileys",
   "main": "launcher.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Kadokun404/arashi.git"
-  },
   "scripts": {
     "test": "node --inspect --expose-gc src/bot.js",
     "start": "node launcher.js",
@@ -63,6 +59,7 @@
   "license": "MIT",
   "type": "module",
   "imports": {
+    "#core/*": "./src/core/*",
     "#helper/*": "./src/helper/*",
     "#database/*": "./src/database/*",
     "#store/*": "./src/store/*",

@@ -7,23 +7,22 @@ import { resolveCommand } from "#manager/command-manager.js"
 import { pluginManager } from "#manager/plugin-manager.js"
 import { menuManager } from "#manager/menu-manager.js"
 import { themeManager } from "#manager/theme-manager.js"
-import { sendPluginHelp } from "#helper/send-plugin-help.js"
+import { sendPluginHelp } from "#helper/message/send-plugin-help.js"
 import { contactStore } from "#store/contact-store.js"
 import { ownerManager } from "#manager/owner-manager.js"
 import { pamManager } from "#manager/pam-manager.js"
 import { chatManager } from "#manager/chat-manager.js"
 import { messageStore } from "#store/make-in-memory-store.js"
-import { antilinkManager } from "#manager/antilink-manager.js"
+import { antilinkManager } from "#manager/group/antilink-manager.js"
 import { pluginEnableManager } from "#manager/plugin-enable-manager.js"
-import { isGroupAdmin, isBotGroupAdmin } from "#helper/group-admin.js"
+import { isGroupAdmin, isBotGroupAdmin } from "#helper/utils/group-admin.js"
 import { config } from "#root/config.js"
 import { botNameManager } from "#manager/bot-name-manager.js"
-import { antiTagSwManager } from "#manager/antitagsw-manager.js"
-import { antiSwGcManager } from "#manager/antiswgc-manager.js"
+import { antiTagSwManager } from "#manager/group/antitagsw-manager.js"
+import { antiSwGcManager } from "#manager/group/antiswgc-manager.js"
 import { banManager } from "#manager/ban-manager.js"
-import { heavyQueueManager } from "#manager/heavy-queue-manager.js"
+import { heavyQueueManager } from "#manager/system/heavy-queue-manager.js"
 import { araManager } from "#manager/ara-manager.js"
-import { askAra } from "#root/src/plugins/ai/ara.js"
 import { handleGameAnswer } from "#manager/game-manager.js"
 export { handlerGroupParticipantsUpdate } from "../../group/group-participant-welcome.js"
 
@@ -321,7 +320,7 @@ if ((global.isBotLocked || isNameLocked) && !plugin?.config?.bypassLock) continu
                 await araPlugin.handleReply(ctx)
             } else if (!m.key?.fromMe && araManager.isActive(jid, m.sender)) {
                 const quotedFromOther = m.q && !m.q.key?.fromMe
-                if (!quotedFromOther) await askAra(ctx, m.text)
+                if (!quotedFromOther) await pluginManager.pluginMap.get("ara")?.askAra?.(ctx, m.text)
            }
         } catch (e) {
             console.error(`plugin error`, e)

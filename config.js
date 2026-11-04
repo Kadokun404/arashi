@@ -1,65 +1,35 @@
 import "dotenv/config"
 
 /**
- * ==============================================================================
- *                     KONFIGURASI UTAMA ARASHI BOT BASE
- * ==============================================================================
- * File ini berisi seluruh pengaturan konfigurasi dasar bot.
- * Pengembang (user) dapat menambahkan konfigurasi baru, API key baru, atau nomor
- * sesuai kebutuhan bot yang ingin dikembangkan.
+ * konfigurasi statis bot. secret diambil dari .env
  */
-
 const config = {
-    /**
-     * --------------------------------------------------------------------------
-     * [ DAFTAR API KEY ]
-     * --------------------------------------------------------------------------
-     * Kamu (user) bisa menambahkan API key baru di objek apikey ini.
-     * Nilainya bisa diambil dari file .env (rekomendasi keamanan) atau ditulis langsung.
-     *
-     * Contoh penambahan:
-     * config.apikey = {
-     *     github: process.env.GITHUB_API_KEY || "",
-     *     myapikey: process.env.MY_API_KEY || "isi_key_kamu_disini",
-     *     openai: process.env.OPENAI_API_KEY || "",
-     *     gemini: process.env.GEMINI_API_KEY || "",
-     *     anthropic: process.env.ANTHROPIC_API_KEY || "",
-     * }
-     *
-     * Cara memanggilnya di dalam file plugin:
-     * --------------------------------------------------------------------------
-     * import { config } from "#root/config.js"
-     * const key = config.apikey.myapikey
-     * --------------------------------------------------------------------------
-     */
     apikey: {
-        github: process.env.GITHUB_API_KEY || "",
-        myapikey: process.env.MY_API_KEY || "" // Contoh: ganti dengan key milikmu
+        github: process.env.GITHUB_API_KEY,
+        theresav: process.env.THERESAV_API_KEY
     },
-
-    // Nomor WhatsApp bot (format angka internasional tanpa tanda +, contoh: "628123456789")
-    BOT_PHONE_NUMBER: process.env.BOT_PHONE_NUMBER || "628xxxxxxxxxx",
-
-    // Pairing code default saat pairing login pertama kali
+    BOT_PHONE_NUMBER: process.env.BOT_PHONE_NUMBER || "",
     PAIRING_CODE: "PPPPPPPP",
 
-    // Identitas Nama & Nomor Bot
     botName: "Arashi",
-    botNumb: process.env.BOT_PHONE_NUMBER || "628xxxxxxxxxx",
+    botNumb: process.env.BOT_PHONE_NUMBER || "",
 
-    // Tampilan Header Menu
-    menuTitle: "Arashi Bot",
-    menuDesc: "Modular WhatsApp Bot Base",
-    menuUrl: "https://github.com/Kadokun404/arashi",
+    menuTitle: "Arashi",
+    menuDesc: "Selamat datang di menu Arashi✨",
+    menuUrl: "",
 
-    // Identitas Developer / Owner Bot (masukkan nomor WA owner kamu di devNumb)
-    devName: "Kadokun",
-    devNumb: ["628xxxxxxxxxx"],
+    devName: "",
+    devNumb: (process.env.OWNER_NUMBERS || "").split(",").map(s => s.trim()).filter(Boolean),
+    TIME_ZONE: "Asia/Makassar",
 
-    // Zona Waktu (WIB: Asia/Jakarta, WITA: Asia/Makassar, WIT: Asia/Jayapura)
-    TIME_ZONE: "Asia/Jakarta"
+    QRIS_API_BASE: process.env.QRIS_API_BASE || "",
+    QRIS_API_TOKEN: process.env.QRIS_API_TOKEN || "",
+    QRIS_UNIQUE_CODE_MAX: 0,
+    QRIS_STORE_PROFILE: { nama: "", alamat: "", kota: "", telp: "" },
+    QRIS_KV_URL: process.env.QRIS_KV_URL || "",
+    QRIS_KV_TOKEN: process.env.QRIS_KV_TOKEN || "",
+
+    GITHUB_TOKEN: process.env.GITHUB_TOKEN || ""
 }
 
-export {
-    config
-}
+export { config }

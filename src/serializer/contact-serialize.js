@@ -3,7 +3,7 @@
 /**@import {contactCache, contactSerialize} from "../types/types.js" */
 
 import { jidDecode,jidNormalizedUser } from "baileys"
-import { longNormalizer } from "#helper/common.js"
+import { longNormalizer } from "#helper/utils/common.js"
 
 /**
  * fungsi ini mengubah WAMessage menjadi contactSerialize yang nantinya masuk ke fungsi upsertAndGet di objek contactStore

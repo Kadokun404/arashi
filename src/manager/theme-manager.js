@@ -3,8 +3,8 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { proto } from "baileys"
 
-import { defaultLock } from "#root/src/async-lock.js"
-import { allPaths } from "#root/src/all-paths.js"
+import { defaultLock } from "#core/async-lock.js"
+import { allPaths } from "#core/all-paths.js"
 
 const CONFIG_PATH = allPaths.themeConfig
 const DEFAULT_KEY = `theme-manager` // key buat async lock

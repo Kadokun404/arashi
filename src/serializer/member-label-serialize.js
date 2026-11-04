@@ -1,4 +1,4 @@
-import { longNormalizer } from "#helper/common.js"
+import { longNormalizer } from "#helper/utils/common.js"
 
 /**
  * @import {WAMessage, WAMessageKey} from "baileys"

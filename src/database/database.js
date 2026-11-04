@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 // my import
-import { allPaths } from '#root/src/all-paths.js'
+import { allPaths } from '#core/all-paths.js'
 
 // auto mkdir folder data biar ga eror kalau folder data belum ada (baru clone / abis backup tanpa data/)
 // dieksekusi sinkron di sini karena database.js ini bisa aja ke-load duluan sebelum bootstrap-data.js

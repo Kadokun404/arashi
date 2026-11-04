@@ -1,5 +1,5 @@
 import { pamDb } from "#database/pam-store.js"
-import { formatDateDDMMYYYY } from "#helper/date.js"
+import { formatDateDDMMYYYY } from "#helper/utils/date.js"
 
 /**
  * @typedef {object} PamActionResponse

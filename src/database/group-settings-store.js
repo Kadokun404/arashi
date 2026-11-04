@@ -1,5 +1,5 @@
 import { JsonObjectDb } from "./json-db.js"
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 
 /**
  * @typedef {object} GroupWelcomeSettings

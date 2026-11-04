@@ -1,22 +1,9 @@
-# Dependencies & Locks
 node_modules/
 package-lock.json
-
-# Environment Variables & Secrets
-.env
 auth/
-session/
-*.pem
-*.key
-
-# Temporary files & Caches
-temp/*
-cache/*
+data/
+cache/
+temp/
+.env
 *.log
 .DS_Store
-
-# Databases & Runtime State (akan otomatis dibuat saat bot berjalan)
-data/*
-!data/.gitkeep
-!temp/.gitkeep
-!cache/.gitkeep

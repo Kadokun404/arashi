@@ -1,4 +1,4 @@
-import { groupWelcomeManager } from "#manager/group-welcome-manager.js"
+import { groupWelcomeManager } from "#manager/group/group-welcome-manager.js"
 import { groupMetadataStore } from "#store/group-metadata-store.js"
 import { contactStore } from "#store/contact-store.js"
 import { generateWelcomeCard, generateGoodbyeCard } from "#helper/canvas/welcomecard.js"

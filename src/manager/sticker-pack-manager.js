@@ -1,4 +1,4 @@
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 import fs from "node:fs"
 import path from "node:path"
 

@@ -6,7 +6,7 @@ import { mkdir, writeFile, readFile } from "node:fs/promises"
 import { dirname } from "node:path"
 
 import { pluginManager } from "./plugin-manager.js"
-import { allPaths } from "../all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 
 const PREFIX_CONFIG_PATH = allPaths.prefix
 

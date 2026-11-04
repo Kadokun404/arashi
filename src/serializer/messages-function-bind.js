@@ -5,7 +5,7 @@ import { downloadMediaMessage } from "baileys"
 import crypto from "crypto"
 
 const BOT_TITLE_DESC = "Arashi"
-const BOT_LINK = "https://arashi.kadokun.com"
+const BOT_LINK = ""
 const PFP_CACHE_TTL = 10 * 60 * 1000 // 10 menit
 
 const FALLBACK_THUMBNAIL = Buffer.from(

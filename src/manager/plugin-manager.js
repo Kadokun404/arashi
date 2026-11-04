@@ -1,12 +1,12 @@
 import fs from "node:fs"
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 import { pathToFileURL } from "node:url"
 import path from "node:path"
-import { pluginManagerLock } from "../async-lock.js"
+import { pluginManagerLock } from "#core/async-lock.js"
 import { randomUUID } from "node:crypto"
 import { mkdir, rm, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
-import { pluginVerifikator } from "../plugin-verifikator.js"
+import { pluginVerifikator } from "#core/plugin-verifikator.js"
 
 const ASYNC_LOCK_KEY = "wakwau"
 

@@ -3,7 +3,7 @@
  */
 
 import { contactStmt } from "../database/table-contacts.js"
-import { toJsObject } from "#helper/common.js"
+import { toJsObject } from "#helper/utils/common.js"
 
 
 class ContactStore {

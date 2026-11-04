@@ -2,7 +2,7 @@ import { createCanvas, loadImage, GlobalFonts } from "@napi-rs/canvas"
 import { writeFile, mkdir } from "node:fs/promises"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 
 /**
  * generator kartu welcome/goodbye pake @napi-rs/canvas (udah jadi dependency

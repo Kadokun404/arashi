@@ -31,11 +31,11 @@ if (!fs.existsSync("./auth")) {
     fs.mkdirSync("./auth", { recursive: true });
 }
 
-import { bootstrapData } from "./bootstrap-data.js";
+import { bootstrapData } from "./core/bootstrap-data.js";
 await bootstrapData();
 
-import { createSocket } from "./socket.js";
-import { customAuth } from "./auth.js";
+import { createSocket } from "./core/socket.js";
+import { customAuth } from "./core/auth.js";
 
 // event handler
 import { handlerCredsUpdate } from "./event-handler/creds/creds-update.js";
@@ -47,7 +47,7 @@ import { handlerGroupParticipantsUpdate } from "./event-handler/group/group-part
 // global debug
 import { chatStore } from "./store/chat-store.js";
 import { contactStore } from "./store/contact-store.js"
-import { emit } from "./emit-test/emit-trigger.js";
+import { emit } from "../scripts/emit-test/emit-trigger.js";
 import { db } from "./database/database.js";
 import { groupMetadataStore } from "./store/group-metadata-store.js";
 import { memberLabelStore } from "./store/member-label-store.js";
@@ -58,14 +58,14 @@ import { pluginManager } from "./manager/plugin-manager.js";
 import { pluginPermissionManager } from "./manager/plugin-permission-manager.js";
 import { menuManager } from "./manager/menu-manager.js";
 import { aliasManager } from "./manager/alias-manager.js";
-import { housekeepingManager } from "./manager/housekeeping-manager.js";
+import { housekeepingManager } from "#manager/system/housekeeping-manager.js";
 housekeepingManager.startScheduler(30);
 
 // global store
 import { store } from "./store/store.js";
 import { messageStore } from "./store/make-in-memory-store.js";
-import { pendingGroupJoinManager } from "./manager/pending-group-join-manager.js";
-import { ttdl } from "./helper/tiktok.js";
+import { pendingGroupJoinManager } from "#manager/group/pending-group-join-manager.js";
+import { ttdl } from "#helper/services/tiktok.js";
 import crmstore from "#store/crmstore.js";
 import { config } from "../config.js";
 // for testing
@@ -86,7 +86,6 @@ global._ = {
     memberLabelStore
 }
 
-global.GC_ANGELINA = "120363423077197619@g.us"
 global.ttdl = ttdl
 
 

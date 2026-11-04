@@ -1,6 +1,6 @@
 import fs from "fs"
 import path from "path"
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 import { ownerManager } from "#manager/owner-manager.js"
 
 const FILE = allPaths.banDb || path.join(process.cwd(), "data", "ban.json")

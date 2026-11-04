@@ -1,4 +1,4 @@
-import { allPaths } from "#root/src/all-paths.js"
+import { allPaths } from "#core/all-paths.js"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 
