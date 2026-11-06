@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url"
 import path from "node:path"
 import { pluginManagerLock } from "#core/async-lock.js"
 import { randomUUID } from "node:crypto"
-import { mkdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, rm, writeFile, readFile, copyFile } from "node:fs/promises"
 import { dirname } from "node:path"
 import { pluginVerifikator } from "#core/plugin-verifikator.js"
 
@@ -222,12 +222,134 @@ class PluginManager {
     }
 
 
+    /**@type {Map<string, object>} */
+    pendingConfirmations = new Map()
+
+    /**
+     * Set pending confirmation session
+     */
+    setPendingConfirmation(sender, data) {
+        if (!sender) return
+        this.pendingConfirmations.set(sender, {
+            ...data,
+            expiresAt: Date.now() + 60000
+        })
+    }
+
+    /**
+     * Ambil sesi pending confirmation (auto clear jika expired)
+     */
+    getPendingConfirmation(sender) {
+        if (!sender) return null
+        const session = this.pendingConfirmations.get(sender)
+        if (!session) return null
+        if (Date.now() > session.expiresAt) {
+            this.pendingConfirmations.delete(sender)
+            return null
+        }
+        return session
+    }
+
+    /**
+     * Hapus sesi pending confirmation
+     */
+    clearPendingConfirmation(sender) {
+        if (sender) this.pendingConfirmations.delete(sender)
+    }
+
+    /**
+     * Cek apakah ada pending confirmation aktif
+     */
+    hasPendingConfirmation(sender) {
+        return Boolean(this.getPendingConfirmation(sender))
+    }
+
+    /**
+     * Proses balasan konfirmasi (Y / Batal)
+     */
+    async processConfirmation(ctx) {
+        const { m, menuManager } = ctx
+        const sender = m.sender
+        const session = this.getPendingConfirmation(sender)
+        if (!session) return false
+
+        const rawText = (m.text || '').trim().toLowerCase()
+        const isYes = ['y', 'ya', 'yes', 'ok', 'iya', 'lanjut', 'gas', 'lanjutkan'].includes(rawText)
+        const isNo = ['batal', 'cancel', 'ga', 'gak', 'ngga', 'nggak', 'no', 'tidak'].includes(rawText)
+
+        if (isYes) {
+            this.clearPendingConfirmation(sender)
+            const successDeleted = []
+            for (const item of session.targets) {
+                const res = await this.deletePlugin(item.cmd)
+                if (res.ok) successDeleted.push(item)
+            }
+            if (menuManager?.buildMenu) menuManager.buildMenu()
+
+            let rep = `🗑️ *HASIL MULTI-DELETE PLUGIN*\n━━━━━━━━━━━━━━━━\n`
+            rep += `✅ Berhasil dipindahkan ke Trash (${successDeleted.length}):\n`
+            rep += successDeleted.map(i => `• *${i.plugin.commands[0]}* (${i.plugin.name})`).join('\n')
+            if (session.protectedList?.length) rep += `\n\n🛡️ *Protected (Dilewati):* ${session.protectedList.join(', ')}`
+            if (session.notFound?.length) rep += `\n❓ *Tidak Ditemukan:* ${session.notFound.join(', ')}`
+            rep += `\n━━━━━━━━━━━━━━━━\n💡 _Gunakan *plugin restore <nama>* untuk mengembalikan jika diperlukan._`
+
+            await m.arashirep(rep)
+            return true
+        }
+
+        if (isNo) {
+            this.clearPendingConfirmation(sender)
+            await m.arashirep('❌ *Penghapusan plugin dibatalkan.*')
+            return true
+        }
+
+        return false
+    }
+
+    /**
+     * Baca metadata trash
+     * @returns {Promise<Array<object>>}
+     */
+    async _readTrashMeta() {
+        try {
+            if (!fs.existsSync(allPaths.trashMeta)) return []
+            const data = await fs.promises.readFile(allPaths.trashMeta, 'utf-8')
+            const parsed = JSON.parse(data)
+            return Array.isArray(parsed) ? parsed : []
+        } catch (e) {
+            console.error('[PLUGIN TRASH] Gagal baca trash metadata:', e)
+            return []
+        }
+    }
+
+    /**
+     * Tulis metadata trash
+     * @param {Array<object>} list 
+     */
+    async _writeTrashMeta(list) {
+        try {
+            await mkdir(dirname(allPaths.trashMeta), { recursive: true })
+            await writeFile(allPaths.trashMeta, JSON.stringify(list, null, 2), 'utf-8')
+        } catch (e) {
+            console.error('[PLUGIN TRASH] Gagal simpan trash metadata:', e)
+        }
+    }
+
+    /**
+     * Ambil list plugin di trash
+     */
+    async getTrashList() {
+        return await this._readTrashMeta()
+    }
+
     /**
      * 
      * @param {string} command 
+     * @param {object} [options]
+     * @param {boolean} [options.hard=false]
      * @returns {Promise <managerResponse>}
      */
-    async deletePlugin(command) {
+    async deletePlugin(command, { hard = false } = {}) {
         try {
             if (!command) return fail(`😮‍💨 mau hapus plugin apa sayang? kasih dong command nya...`)
 
@@ -237,10 +359,36 @@ class PluginManager {
             if (!plugin) return fail(`👻 wakwau.. kamu gak punya plugin dengan command *${command}*`)
 
             // cek apakah plugin protected
-            if (plugin?.config?.protected) return fail(`hell nah.. how about no.. plugin *${plugin.name}* adalah plugin protected. kamu bisa melihat semua plugin protected denagn command --protected`)
+            if (plugin?.config?.protected) return fail(`hell nah.. how about no.. plugin *${plugin.name}* adalah plugin protected. kamu bisa melihat semua plugin protected dengan command --protected`)
 
-            // hapus file dari folder plugin
-            await fs.promises.rm(plugin.path)
+            if (hard) {
+                // hapus permanen
+                await fs.promises.rm(plugin.path)
+            } else {
+                // soft-delete ke trash
+                await mkdir(allPaths.trashDir, { recursive: true })
+                const baseName = plugin.meta?.filename || path.basename(plugin.path)
+                const trashFileName = `${Date.now()}_${baseName}`
+                const trashFilePath = path.join(allPaths.trashDir, trashFileName)
+
+                // copy ke trash dulu baru rm file asli
+                await fs.promises.copyFile(plugin.path, trashFilePath)
+                await fs.promises.rm(plugin.path)
+
+                // catat di metadata
+                const trashList = await this._readTrashMeta()
+                const trashItem = {
+                    id: randomUUID().slice(0, 8),
+                    name: plugin.name || baseName,
+                    commands: Array.isArray(plugin.commands) ? [...plugin.commands] : [command],
+                    filename: baseName,
+                    originalPath: plugin.path,
+                    trashPath: trashFilePath,
+                    deletedAt: Date.now()
+                }
+                trashList.unshift(trashItem)
+                await this._writeTrashMeta(trashList)
+            }
 
             // hapus plugin dari map
             for (const cmd of plugin.commands) {
@@ -249,20 +397,106 @@ class PluginManager {
 
             // hapus plugin dari array
             const pluginIndex = this.pluginArray.findIndex(p => {
-                return p.commands.some(cmd => cmd === command)
+                return p.path === plugin.path || p.commands.some(cmd => cmd === command)
             })
-            this.pluginArray.splice(pluginIndex, 1)
+            if (pluginIndex !== -1) {
+                this.pluginArray.splice(pluginIndex, 1)
+            }
 
-            // susun kata kata dulu dong
-            const kataKata = `*✅ plugin berhasil di uninstall*\n` +
-                `nama: ${plugin.name}\n` +
-                `command: ${plugin.commands.join(', ')}\n` +
-                `path: ${plugin.path}`
+            // susun kata kata respon
+            const actionText = hard ? "berhasil di uninstall (permanen)" : "berhasil dipindahkan ke Trash"
+            const kataKata = `*🗑️ Plugin ${actionText}*\n` +
+                `• Nama: ${plugin.name}\n` +
+                `• Command: ${plugin.commands.join(', ')}\n` +
+                `• Path: ${plugin.path}` +
+                (!hard ? `\n💡 _Ketik *plugin restore ${command}* jika ingin mengembalikan._` : '')
             return success(kataKata)
 
         } catch (e) {
             console.error(`gagal hapus plugin`, e)
             return fail('error: ' + e.message)
+        }
+    }
+
+    /**
+     * Restore plugin dari trash
+     * @param {string} keyword (command, filename, name, atau id)
+     * @returns {Promise<managerResponse>}
+     */
+    async restorePlugin(keyword) {
+        try {
+            if (!keyword) return fail(`😮‍💨 Mau restore plugin apa sayang? Kasih nama command atau filenya yaa...`)
+
+            const query = String(keyword).trim().toLowerCase()
+            const trashList = await this._readTrashMeta()
+
+            if (!trashList.length) return fail(`🗑️ Tempat sampah (Trash) sedang kosong.`)
+
+            const matchIndex = trashList.findIndex(item => {
+                if (item.id === query) return true
+                if (item.filename?.toLowerCase() === query) return true
+                if (item.name?.toLowerCase() === query) return true
+                if (Array.isArray(item.commands) && item.commands.some(c => c.toLowerCase() === query)) return true
+                return false
+            })
+
+            if (matchIndex === -1) {
+                return fail(`👻 Plugin *${keyword}* tidak ditemukan di Trash. Cek daftar dengan *plugin trash*.`)
+            }
+
+            const item = trashList[matchIndex]
+
+            // Cek file di trash masih ada apa nggak
+            if (!fs.existsSync(item.trashPath)) {
+                trashList.splice(matchIndex, 1)
+                await this._writeTrashMeta(trashList)
+                return fail(`❌ File di trash sudah tidak ditemukan atau rusak. Item telah dibersihkan dari daftar.`)
+            }
+
+            // Baca buffer dan reinstall via install (replace mode true)
+            const buffer = await fs.promises.readFile(item.trashPath)
+            const installRes = await this.install(buffer, true)
+
+            if (!installRes.ok) {
+                return fail(`❌ Gagal restore plugin: ${installRes.message}`)
+            }
+
+            // Hapus file dari trash & update metadata
+            await fs.promises.rm(item.trashPath).catch(() => {})
+            trashList.splice(matchIndex, 1)
+            await this._writeTrashMeta(trashList)
+
+            return success(
+                `*✅ Plugin berhasil di-restore!*\n` +
+                `• Nama: ${item.name}\n` +
+                `• Command: ${item.commands.join(', ')}\n` +
+                `• File: ${item.filename}`
+            )
+        } catch (e) {
+            console.error(`gagal restore plugin`, e)
+            return fail('error: ' + e.message)
+        }
+    }
+
+    /**
+     * Kosongkan trash
+     * @returns {Promise<number>} jumlah plugin yang dihapus permanen
+     */
+    async emptyTrash() {
+        try {
+            const trashList = await this._readTrashMeta()
+            const count = trashList.length
+
+            if (fs.existsSync(allPaths.trashDir)) {
+                await fs.promises.rm(allPaths.trashDir, { recursive: true, force: true })
+                await mkdir(allPaths.trashDir, { recursive: true })
+            }
+
+            await this._writeTrashMeta([])
+            return count
+        } catch (e) {
+            console.error(`[PLUGIN TRASH] Gagal mengosongkan trash:`, e)
+            return 0
         }
     }
 

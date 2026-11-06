@@ -9,9 +9,12 @@ const allPaths = {
     baileysAuth : path.join(rootDir, "auth"),
     plugins: path.join(srcDir, "plugins"),
     temp: path.join(srcDir, "temp"),
+    trashDir: path.join(rootDir, "data/trash/plugins"),
+    trashMeta: path.join(rootDir, "data/trash/plugin-trash.json"),
 
     // file
     prefix : path.join(rootDir, "data/prefix-config.json"),
+    groupPrefix : path.join(rootDir, "data/group-prefix.json"),
     database : path.join(rootDir, "data/database.db"),
     trustDb : path.join(rootDir, "data/trust.json"),
     pamDb : path.join(rootDir, "data/pam.json"),
@@ -28,15 +31,19 @@ const allPaths = {
     reactStickerDb: path.join(rootDir, "data/react-sticker.json"),
     antiswgcDb: path.join(rootDir, "data/antiswgc.json"),
     banDb: path.join(rootDir, "data/ban.json"),
+    antiViewOnceDb: path.join(rootDir, "data/antiviewonce.json"),
     stickerPackDb: path.join(rootDir, "data/sticker-packs.json"),
     stickerPacksDir: path.join(rootDir, "data/sticker-packs"),
+    nsfwConfig: path.join(rootDir, "data/nsfw-config.json"),
 
     // === hasil merge dari Karina ===
     userDb : path.join(rootDir, "data/users.json"),
     groupSettingsDb : path.join(rootDir, "data/group-settings.json"),
     lockDb : path.join(rootDir, "data/lock.json"),
     selfPublicConfig : path.join(rootDir, "data/self-public-config.json"),
-    crmConfig : path.join(rootDir, "data/crm-config.json")
+    crmConfig : path.join(rootDir, "data/crm-config.json"),
+    codekuAuth : path.join(rootDir, "data/codeku-auth.json"),
+    telegramSession: path.join(rootDir, "data/telegram-session.json")
 }
 
 export { allPaths }
