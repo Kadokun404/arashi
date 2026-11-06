@@ -1,41 +1,35 @@
 /**
- * @import {CommonResponse, PrefixResult , PrefixStatus} from "../types/types.js"
+ * @import {CommonResponse, PrefixResult, PrefixStatus} from "../types/types.js"
  */
 
 import { mkdir, writeFile, readFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { existsSync } from "node:fs"
+import path, { dirname } from "node:path"
 
 import { pluginManager } from "./plugin-manager.js"
 import { allPaths } from "#core/all-paths.js"
 
-const PREFIX_CONFIG_PATH = allPaths.prefix
+const PREFIX_CONFIG_PATH = allPaths?.prefix || path.resolve("data/prefix-config.json")
+const GROUP_PREFIX_PATH = allPaths?.groupPrefix || path.resolve("data/group-prefix.json")
+if (allPaths && !allPaths.groupPrefix) {
+    allPaths.groupPrefix = GROUP_PREFIX_PATH
+}
 
-// ubah kata kata disini kalau mau
 const string = {
-    SUCCESS_OFF: `✅ prefix berhasil di matikan`,
-    SUCCESS_ON: ` ✅ prefix berhasil di aktifkan`,
-    NOTHING_CHANGE_OFF: `prefix udh mati kok. nothing change`,
-    NOTHING_CHANGE_ON: `prefix udh nyala. nothing change`
+    SUCCESS_OFF: `prefix disabled`,
+    SUCCESS_ON: `prefix enabled`,
+    NOTHING_CHANGE_OFF: `prefix already disabled`,
+    NOTHING_CHANGE_ON: `prefix already enabled`
 }
 
 const DEFAULT_PREFIX_FLAG = false
-const DEFAULT_PREFIX_LIST = ["."]
+const DEFAULT_PREFIX_LIST = [".", "#", "!", "/"]
 
 /**@returns {CommonResponse} */
-const failResponse = message => {
-    return {
-        ok: false,
-        message
-    }
-}
+const failResponse = message => ({ ok: false, message })
 
 /**@returns {CommonResponse} */
-const successResponse = message => {
-    return {
-        ok: true,
-        message
-    }
-}
+const successResponse = message => ({ ok: true, message })
 
 class PrefixManager {
     /**@type {boolean} */
@@ -44,60 +38,105 @@ class PrefixManager {
     /**@type {string[]} */
     #prefixList = DEFAULT_PREFIX_LIST
 
+    /**@type {Map<string, { isPrefixActive: boolean, prefixList: string[] }>} */
+    #groupMap = new Map()
+
     /**
-     * mengembalikan status prefix
-     * @returns {PrefixStatus}
+     * mengembalikan status prefix (jika ada jid grup, kembalikan status grup atau fallback global)
+     * @param {string} [jid]
+     * @returns {PrefixStatus & { isCustom?: boolean, isGroup?: boolean }}
      */
-    getStatus() {
+    getStatus(jid) {
+        if (jid && this.#groupMap.has(jid)) {
+            const conf = this.#groupMap.get(jid)
+            return {
+                isPrefixActive: conf.isPrefixActive,
+                prefixList: Object.freeze([...conf.prefixList]),
+                isCustom: true,
+                isGroup: true
+            }
+        }
         return {
             isPrefixActive: this.#isPrefixActive,
-            prefixList: Object.freeze([...this.#prefixList])
+            prefixList: Object.freeze([...this.#prefixList]),
+            isCustom: false,
+            isGroup: Boolean(jid?.endsWith("@g.us"))
         }
     }
 
     /**
-     * 
-     * @param {string} text 
-     * @returns {Promise<CommonResponse>}
+     * Mengambil seluruh daftar grup yang memiliki override prefix (dari JSONL)
      */
+    getAllGroupOverrides() {
+        const list = []
+        for (const [jid, conf] of this.#groupMap.entries()) {
+            list.push({ jid, ...conf })
+        }
+        return list
+    }
+
+    /**
+     * Aktifkan prefix untuk grup tertentu
+     * @param {string} jid
+     */
+    async setGroupPrefixOn(jid) {
+        if (!jid) return failResponse("invalid group jid")
+        const prev = this.#groupMap.get(jid) || { prefixList: [...this.#prefixList] }
+        this.#groupMap.set(jid, {
+            isPrefixActive: true,
+            prefixList: prev.prefixList
+        })
+        await this.saveGroupConfig()
+        return successResponse(`prefix enabled for this group`)
+    }
+
+    async setGroupPrefixOff(jid) {
+        if (!jid) return failResponse("invalid group jid")
+        const prev = this.#groupMap.get(jid) || { prefixList: [...this.#prefixList] }
+        this.#groupMap.set(jid, {
+            isPrefixActive: false,
+            prefixList: prev.prefixList
+        })
+        await this.saveGroupConfig()
+        return successResponse(`prefix disabled for this group`)
+    }
+
+    async setGroupPrefixList(jid, prefixList) {
+        if (!jid) return failResponse("invalid group jid")
+        if (!Array.isArray(prefixList) || !prefixList.length) return failResponse("prefix list cannot be empty")
+        const prev = this.#groupMap.get(jid) || { isPrefixActive: true }
+        this.#groupMap.set(jid, {
+            isPrefixActive: prev.isPrefixActive,
+            prefixList
+        })
+        await this.saveGroupConfig()
+        return successResponse(`prefix set to [ ${prefixList.join(" , ")} ]`)
+    }
+
+    async resetGroupPrefix(jid) {
+        if (!jid) return failResponse("invalid group jid")
+        if (!this.#groupMap.has(jid)) {
+            return failResponse("group is already using global default")
+        }
+        this.#groupMap.delete(jid)
+        await this.saveGroupConfig()
+        return successResponse(`prefix reset to global default`)
+    }
+
     async addPrefix(text) {
-        if (!text) return {
-            ok: false,
-            message: `input gak boleh kosong`
-        }
+        if (!text || typeof text !== "string") return failResponse("invalid input string")
 
-        if (typeof (text) !== "string") {
-            return {
-                ok: false,
-                message: `tipe input harus string`
-            }
-        }
-
-        // cek apakah prefix sudah ada
         const prefixExist = this.#prefixList.some(prefix => prefix === text)
-        if (prefixExist) {
-            return {
-                ok: false,
-                message: `prefix ${text} sudah ada`
-            }
-        }
+        if (prefixExist) return failResponse(`prefix ${text} already exists`)
 
-        // cek apakah prefix bentrok dengan plugin yang punya konfig bypassPrefix
         const plugin = pluginManager.getPlugin(text)
         if (plugin?.config?.bypassPrefix) {
-            return {
-                ok: false,
-                message: `woops prefix mu itu sudah reserved untuk plugin *${plugin.name}*. coba input prefix yang lain. buat liat full reserved prefix gunakan param *--reserved*`
-            }
+            return failResponse(`prefix ${text} reserved for *${plugin.name}*`)
         }
 
-        // add prefix to array
         this.#prefixList.push(text.trim())
         await this.saveConfig()
-        return {
-            ok: true,
-            message: `prefix ${text} berhasil di tambahkan`
-        }
+        return successResponse(`prefix ${text} added`)
     }
 
     getDefaultConfig() {
@@ -108,19 +147,24 @@ class PrefixManager {
     }
 
     /**
-     * fungsi yang buat resolve prefix, liat aja
+     * Resolve prefix dari teks pesan (memperhitungkan override per-grup jika ada jid)
      * @param {string|undefined} text 
-     * @returns {prefixResult}
+     * @param {string} [jid] 
+     * @returns {PrefixResult}
      */
-    resolvePrefix(text) {
+    resolvePrefix(text, jid) {
         if (!text) return {
             ok: false,
             prefix: undefined,
             data: undefined
         }
 
-        if (this.#isPrefixActive) {
-            for (const prefix of this.#prefixList) {
+        const groupConf = (jid && this.#groupMap.has(jid)) ? this.#groupMap.get(jid) : null
+        const isActive = groupConf ? groupConf.isPrefixActive : this.#isPrefixActive
+        const prefixList = groupConf ? groupConf.prefixList : this.#prefixList
+
+        if (isActive) {
+            for (const prefix of prefixList) {
                 if (text.startsWith(prefix)) {
                     const textWithoutPrefix = text.slice(prefix.length).trimStart()
                     return {
@@ -136,9 +180,19 @@ class PrefixManager {
                 prefix: undefined,
                 data: text
             }
-        }
+        } else {
+            // Mode Prefix OFF: cek apakah diawali salah satu prefix terdaftar
+            for (const prefix of prefixList) {
+                if (text.startsWith(prefix)) {
+                    const textWithoutPrefix = text.slice(prefix.length).trimStart()
+                    return {
+                        ok: true,
+                        prefix,
+                        data: textWithoutPrefix
+                    }
+                }
+            }
 
-        else {
             return {
                 ok: true,
                 prefix: undefined,
@@ -147,92 +201,63 @@ class PrefixManager {
         }
     }
 
-    /**
-     * fungsi untuk menghidupkan prefix, handle ya response nya
-     * @return {Promise <CommonResponse>}
-     */
-    togglePrefixOn = async () => {
+    async togglePrefixOn() {
         if (this.#isPrefixActive) {
-            return {
-                ok: false,
-                message: string.NOTHING_CHANGE_ON
-            }
-        } else {
-            this.#isPrefixActive = true
-            await this.saveConfig()
-            return {
-                ok: true,
-                message: string.SUCCESS_ON
-            }
+            return failResponse(string.NOTHING_CHANGE_ON)
         }
+        this.#isPrefixActive = true
+        await this.saveConfig()
+        return successResponse(string.SUCCESS_ON)
     }
 
-    /**
-     * fungsi untuk matikan prefix, handle ya response nya
-     * @return {Promise <CommonResponse>}
-     */
-    togglePrefixOff = async () => {
-        if (this.#isPrefixActive) {
-            this.#isPrefixActive = false
-            await this.saveConfig()
-            return {
-                ok: true,
-                message: string.SUCCESS_OFF
-            }
-        } else {
-            return {
-                ok: false,
-                message: string.NOTHING_CHANGE_OFF
-            }
+    async togglePrefixOff() {
+        if (!this.#isPrefixActive) {
+            return failResponse(string.NOTHING_CHANGE_OFF)
         }
+        this.#isPrefixActive = false
+        await this.saveConfig()
+        return successResponse(string.SUCCESS_OFF)
     }
 
-    /**
-     * fungsi untuk menyimpan konfig prefix
-     * @returns {Promise <void>}
-     */
     async saveConfig() {
         const data = {
             isPrefixActive: this.#isPrefixActive,
             prefixList: this.#prefixList
         }
-
-        const parrentDir = dirname(PREFIX_CONFIG_PATH)
-        await mkdir(parrentDir, {
-            recursive: true
-        })
-
+        await mkdir(dirname(PREFIX_CONFIG_PATH), { recursive: true })
         await writeFile(PREFIX_CONFIG_PATH, JSON.stringify(data, null, 2))
         console.log(`[prefix config saved] ${PREFIX_CONFIG_PATH}`)
     }
 
-    /**
-     * fungsi untuk membaca config prefix dari file dan menyimpannya ke ram
-     * kalau gagal baca config prefix dari file maka akan fallback ke default
-     * prefix
-     * @returns {Promise <void>}
-     */
+    async saveGroupConfig() {
+        const targetPath = GROUP_PREFIX_PATH || path.resolve("data/group-prefix.json")
+        const data = {}
+        for (const [jid, conf] of this.#groupMap.entries()) {
+            data[jid] = {
+                isPrefixActive: conf.isPrefixActive,
+                prefixList: conf.prefixList
+            }
+        }
+        await mkdir(dirname(targetPath), { recursive: true })
+        await writeFile(targetPath, JSON.stringify(data, null, 2))
+        console.log(`[group-prefix json saved] ${targetPath} (${this.#groupMap.size} records)`)
+    }
+
     async loadConfig() {
         try {
-            const file = await readFile(
-                PREFIX_CONFIG_PATH,
-                "utf-8"
-            )
+            const file = await readFile(PREFIX_CONFIG_PATH, "utf-8")
             const config = JSON.parse(file)
             const fallback = this.getDefaultConfig()
 
-            this.#isPrefixActive =
-                typeof config.isPrefixActive === "boolean"
-                    ? config.isPrefixActive
-                    : fallback.isPrefixActive
+            this.#isPrefixActive = typeof config.isPrefixActive === "boolean"
+                ? config.isPrefixActive
+                : fallback.isPrefixActive
 
-            this.#prefixList =
-                Array.isArray(config.prefixList)
-                    ? config.prefixList
-                    : fallback.prefixList
+            this.#prefixList = Array.isArray(config.prefixList)
+                ? config.prefixList
+                : fallback.prefixList
 
             console.log(`success read prefix config`)
-
         } catch (e) {
             console.warn(`fail load prefix config, using fallback config`, e)
             const fallback = this.getDefaultConfig()
@@ -240,40 +265,91 @@ class PrefixManager {
             this.#prefixList = fallback.prefixList
             await this.saveConfig()
         }
+
+        await this.loadGroupConfig()
     }
 
-    /**
-     * fungsi untuk mereset prefix list ke default
-     * @returns {Promise <CommonResponse>}
-     */
-    async setToDefaultPrefixList() {
-        this.#prefixList = this.getDefaultConfig().prefixList
-        await this.saveConfig()
-        return {
-            ok: true,
-            message: `prefix list di hapus semua dan list nya di set ke default`
+    async loadGroupConfig() {
+        try {
+            const targetPath = GROUP_PREFIX_PATH || path.resolve("data/group-prefix.json")
+            const legacyPath = targetPath.endsWith(".json") ? targetPath.replace(/\.json$/, ".jsonl") : null
+
+            let rawContent = ""
+            if (existsSync(targetPath)) {
+                rawContent = await readFile(targetPath, "utf-8")
+            } else if (legacyPath && existsSync(legacyPath)) {
+                // Auto-migrasi dari file .jsonl lama ke .json
+                rawContent = await readFile(legacyPath, "utf-8")
+                const lines = rawContent.split(/\r?\n/).filter(line => line.trim())
+                this.#groupMap.clear()
+                for (const line of lines) {
+                    try {
+                        const item = JSON.parse(line)
+                        if (item?.jid && typeof item.isPrefixActive === "boolean") {
+                            this.#groupMap.set(item.jid, {
+                                isPrefixActive: item.isPrefixActive,
+                                prefixList: Array.isArray(item.prefixList) && item.prefixList.length ? item.prefixList : [...this.#prefixList]
+                            })
+                        }
+                    } catch {}
+                }
+                await this.saveGroupConfig()
+                try {
+                    const fs = await import("node:fs/promises")
+                    await fs.unlink(legacyPath)
+                } catch {}
+                console.log(`[group-prefix] migrated ${this.#groupMap.size} records from jsonl to json`)
+                return
+            } else {
+                return
+            }
+
+            if (!rawContent.trim()) return
+            const parsed = JSON.parse(rawContent)
+            this.#groupMap.clear()
+
+            if (Array.isArray(parsed)) {
+                for (const item of parsed) {
+                    if (item?.jid && typeof item.isPrefixActive === "boolean") {
+                        this.#groupMap.set(item.jid, {
+                            isPrefixActive: item.isPrefixActive,
+                            prefixList: Array.isArray(item.prefixList) && item.prefixList.length ? item.prefixList : [...this.#prefixList]
+                        })
+                    }
+                }
+            } else if (typeof parsed === "object" && parsed !== null) {
+                for (const [jid, item] of Object.entries(parsed)) {
+                    if (jid && typeof item?.isPrefixActive === "boolean") {
+                        this.#groupMap.set(jid, {
+                            isPrefixActive: item.isPrefixActive,
+                            prefixList: Array.isArray(item.prefixList) && item.prefixList.length ? item.prefixList : [...this.#prefixList]
+                        })
+                    }
+                }
+            }
+            console.log(`[group-prefix] loaded ${this.#groupMap.size} overrides from json`)
+        } catch (e) {
+            console.warn(`[group-prefix] fail load group prefix json`, e)
         }
     }
 
-    /**
-     * 
-     * @param {number} index index nya di mulai dari 1 ya misal prefix nya ada 3, index nya adalah 1, 2, 3, kalau input 4 maka error, kalau input 0 maka error
-     * @returns {Promise <CommonResponse>}
-     */
+    async setToDefaultPrefixList() {
+        this.#prefixList = this.getDefaultConfig().prefixList
+        await this.saveConfig()
+        return successResponse(`prefix reset to default`)
+    }
+
     async deletePrefix(index) {
-        if (!index) return failResponse(`input gak boleh falsy`)
-        if (isNaN(index)) return failResponse(`input harus valid integer`)
-        if (index <= 0) return failResponse(`index gak boleh negatif atau 0`)
-        if (index > this.#prefixList.length) return failResponse(`index gak boleh lebih dari ${this.#prefixList.length}`)
-        if (this.#prefixList.length <= 1) return failResponse(`prefix cuma sisa 1, gak bisa di hapus`)
+        if (!index || isNaN(index) || index <= 0) return failResponse("invalid index")
+        if (index > this.#prefixList.length) return failResponse(`index exceeds max (${this.#prefixList.length})`)
+        if (this.#prefixList.length <= 1) return failResponse(`cannot delete last prefix`)
 
         const elementRemoved = this.#prefixList.splice(index - 1, 1)
         await this.saveConfig()
-        return successResponse(`prefix ${elementRemoved} berhasil di hapus`)
+        return successResponse(`prefix ${elementRemoved} deleted`)
     }
 }
 
 const prefixManager = new PrefixManager()
 prefixManager.loadConfig()
 export { prefixManager }
-
