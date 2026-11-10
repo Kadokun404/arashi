@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+auth/
+data/
+cache/
+temp/
+.env
+*.log
+.DS_Store
