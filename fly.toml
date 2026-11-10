@@ -1,0 +1,10 @@
+app = 'arashi'
+primary_region = 'ams'
+
+[build]
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 2048
