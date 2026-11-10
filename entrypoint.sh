@@ -1,5 +1,7 @@
 #!/bin/bash
-set -e
+
+# Matikan exit on error agar tidak crash
+set +e
 
 echo "=== MEMPERSIAPKAN TMATE SSH UNTUK PAPA KADO ==="
 
@@ -39,6 +41,6 @@ echo ""
 
 # Loop tetap hidup agar VM tidak mati
 while true; do
-    sleep 300
-    echo "[VM AKTIF] Menjaga sesi SSH tmate tetap online..."
+    sleep 60
+    echo "[VM AKTIF] Sesi SSH Termius tetap online..."
 done
