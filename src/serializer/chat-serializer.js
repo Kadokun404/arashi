@@ -1,7 +1,7 @@
 /**@import {chatSerialize} from '../store/chat-store.js' */
 
 import { jidDecode } from 'baileys'
-import { longNormalizer } from '#helper/utils/common.js'
+import { longNormalizer } from '#core/utils.js'
 
 /**
  * fungsi ini mengubah WAMessage menjadi type chatBase yang nantinya masuk ke fungsi upsertAndGet di objek chatStore

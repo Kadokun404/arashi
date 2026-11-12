@@ -21,6 +21,9 @@ const HERE = `[theme-manager.js]` // buat log display
  * @property {string} url
  * @property {string|undefined} title
  * @property {string|undefined} description
+ * @property {string|undefined} replyUrl url khusus untuk m.arashirep / m.arashireply (fallback ke url tema)
+ * @property {string|undefined} replyDescription deskripsi khusus untuk m.arashirep / m.arashireply (fallback ke description tema)
+ * @property {string|undefined} replyTitle judul khusus untuk m.arashirep / m.arashireply (fallback ke title tema)
  */
 
 /**
@@ -168,6 +171,69 @@ class ThemeManager {
     }
 
     /**
+     * @param {string|undefined} url
+     * @returns {Promise<CommonResponse<string>>}
+     */
+    async setReplyUrl(url) {
+        try {
+            if (url === undefined || url === null || url === "") {
+                this.#config.replyUrl = undefined
+                await this.#saveConfig()
+                return { data: `reply url di-reset ke default theme url` }
+            }
+            const validUrl = /^\s*https?:\/\//.test(url)
+            if (!validUrl) return { error: `url harus string dan pastikan berformat http(s)://` }
+            const urlTrim = url.trim()
+            this.#config.replyUrl = urlTrim
+            await this.#saveConfig()
+            return { data: `reply url berhasil di-set menjadi ${urlTrim}` }
+        } catch (e) {
+            console.error(e)
+            return { error: `catch error ${e.message}` }
+        }
+    }
+
+    /**
+     * @param {string|undefined} desc
+     * @returns {Promise<CommonResponse<string>>}
+     */
+    async setReplyDescription(desc) {
+        try {
+            if (desc === undefined || desc === null || desc === "") {
+                this.#config.replyDescription = undefined
+                await this.#saveConfig()
+                return { data: `reply description di-reset ke default theme description` }
+            }
+            this.#config.replyDescription = String(desc).trim()
+            await this.#saveConfig()
+            return { data: `reply description berhasil di-set` }
+        } catch (e) {
+            console.error(e)
+            return { error: `catch error ${e.message}` }
+        }
+    }
+
+    /**
+     * @param {string|undefined} title
+     * @returns {Promise<CommonResponse<string>>}
+     */
+    async setReplyTitle(title) {
+        try {
+            if (title === undefined || title === null || title === "") {
+                this.#config.replyTitle = undefined
+                await this.#saveConfig()
+                return { data: `reply title di-reset ke default theme title` }
+            }
+            this.#config.replyTitle = String(title).trim()
+            await this.#saveConfig()
+            return { data: `reply title berhasil di-set` }
+        } catch (e) {
+            console.error(e)
+            return { error: `catch error ${e.message}` }
+        }
+    }
+
+    /**
      * @returns {ThemeManagerData}
      */
     #getDefaultConfig() {
@@ -198,7 +264,10 @@ class ThemeManager {
                     description: json.description,
                     title: json.title,
                     url: json.url,
-                    message: json.message ? proto.Message.fromObject(json.message) : undefined
+                    message: json.message ? proto.Message.fromObject(json.message) : undefined,
+                    replyUrl: json.replyUrl,
+                    replyDescription: json.replyDescription,
+                    replyTitle: json.replyTitle
                 }
                 console.log(`${HERE} load theme manager config`)
             } catch (e) {

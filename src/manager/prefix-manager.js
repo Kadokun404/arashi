@@ -2,7 +2,8 @@
  * @import {CommonResponse, PrefixResult, PrefixStatus} from "../types/types.js"
  */
 
-import { mkdir, writeFile, readFile } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
+import { writeJsonAtomic } from "#core/utils.js"
 import { existsSync } from "node:fs"
 import path, { dirname } from "node:path"
 
@@ -23,7 +24,7 @@ const string = {
 }
 
 const DEFAULT_PREFIX_FLAG = false
-const DEFAULT_PREFIX_LIST = [".", "#", "!", "/"]
+const DEFAULT_PREFIX_LIST = [".", "#", "/"]
 
 /**@returns {CommonResponse} */
 const failResponse = message => ({ ok: false, message })
@@ -224,8 +225,7 @@ class PrefixManager {
             isPrefixActive: this.#isPrefixActive,
             prefixList: this.#prefixList
         }
-        await mkdir(dirname(PREFIX_CONFIG_PATH), { recursive: true })
-        await writeFile(PREFIX_CONFIG_PATH, JSON.stringify(data, null, 2))
+        await writeJsonAtomic(PREFIX_CONFIG_PATH, data)
         console.log(`[prefix config saved] ${PREFIX_CONFIG_PATH}`)
     }
 
@@ -238,8 +238,7 @@ class PrefixManager {
                 prefixList: conf.prefixList
             }
         }
-        await mkdir(dirname(targetPath), { recursive: true })
-        await writeFile(targetPath, JSON.stringify(data, null, 2))
+        await writeJsonAtomic(targetPath, data)
         console.log(`[group-prefix json saved] ${targetPath} (${this.#groupMap.size} records)`)
     }
 

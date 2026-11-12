@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { readFile } from "node:fs/promises"
+import { writeJsonAtomic } from "#core/utils.js"
 
 /**
  * JsonDb, penyimpanan sederhana berbasis file .json
@@ -48,9 +48,7 @@ class JsonDb {
      */
     async save() {
         this.#writeLock = this.#writeLock.then(async () => {
-            const dir = dirname(this.filePath)
-            await mkdir(dir, { recursive: true })
-            await writeFile(this.filePath, JSON.stringify(this.data, null, 2))
+            await writeJsonAtomic(this.filePath, this.data)
         })
         return this.#writeLock
     }
@@ -102,9 +100,7 @@ class JsonObjectDb {
 
     async save() {
         this.#writeLock = this.#writeLock.then(async () => {
-            const dir = dirname(this.filePath)
-            await mkdir(dir, { recursive: true })
-            await writeFile(this.filePath, JSON.stringify(this.data, null, 2))
+            await writeJsonAtomic(this.filePath, this.data)
         })
         return this.#writeLock
     }

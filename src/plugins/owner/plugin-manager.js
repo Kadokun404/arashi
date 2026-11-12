@@ -71,10 +71,10 @@ const getPluginHandler = async (ctx, userParams) => {
     const { sock, jid, pluginManager, m, q } = ctx
     const { userCommand, userAdditionalParam } = userParams
 
-    if (!userCommand) return await m.arashirep(`command nya apa sayang?`)
+    if (!userCommand) return await m.arashirep(`Specify the plugin command name.\nExample: .plugin g play`)
 
     const plugin = pluginManager.getPlugin(userCommand)
-    if (!plugin) return await m.arashirep(`plugin ${userCommand} gak ketemu`)
+    if (!plugin) return await m.arashirep(`Plugin not found: ${userCommand}`)
 
     if (userAdditionalParam === "-t") {
         const pluginCode = await fs.promises.readFile(plugin.path, { encoding: 'utf-8' })
@@ -82,10 +82,10 @@ const getPluginHandler = async (ctx, userParams) => {
     }
 
     let mentions = []
-    let caption = `nih plugin ${plugin.name} nya\nplugin di buat oleh ${plugin.meta.author || '(author kosong)'}`
+    let caption = `Plugin: ${plugin.name}\nAuthor: ${plugin.meta.author || "Unknown"}`
 
     if (q && !areJidsSameUser(m.sender, q?.sender)) {
-        caption = `kamu di kasih plugin ${plugin.name} sama @${jidDecode(m.sender).user}, happy coding yaa`
+        caption = `Shared plugin ${plugin.name} from @${jidDecode(m.sender).user}`
         mentions[0] = m.sender
     }
 
@@ -106,7 +106,7 @@ const uninstallPluginHandler = async (ctx, tokens) => {
     const rawTargets = tokens.filter(t => !/^(-y|--yes|-f|--force)$/i.test(t))
 
     if (!rawTargets.length) {
-        return await m.arashirep(`😮‍💨 Mau hapus plugin apa sayang? Kasih command nya yaa...\nContoh: *plugin del test1 test2* atau *plugin d test1 -y*`)
+        return await m.arashirep(`Specify plugin command names to delete.\nExample: .plugin d test1 test2 or .plugin d test1 -y`)
     }
 
     const toDelete = []
@@ -136,25 +136,25 @@ const uninstallPluginHandler = async (ctx, tokens) => {
     }
 
     if (toDelete.length === 0) {
-        let msg = `⚠️ *Tidak ada plugin yang dapat dihapus.*`
-        if (protectedList.length) msg += `\n🛡️ *Protected (Dilarang):* ${protectedList.join(', ')}`
-        if (notFoundList.length) msg += `\n❓ *Tidak Ditemukan:* ${notFoundList.join(', ')}`
+        let msg = `No deletable plugins found.`
+        if (protectedList.length) msg += `\nProtected: ${protectedList.join(', ')}`
+        if (notFoundList.length) msg += `\nNot found: ${notFoundList.join(', ')}`
         return await m.arashirep(msg)
     }
 
-    // 1 plugin & tanpa flag -y: langsung eksekusi ke Trash (sesuai alur agar cepat)
+    // 1 plugin & tanpa flag -y: langsung eksekusi ke Trash
     if (toDelete.length === 1 && !isForce) {
         const target = toDelete[0]
         const result = await pluginManager.deletePlugin(target.cmd)
         if (menuManager?.buildMenu) menuManager.buildMenu()
 
-        let rep = result.message || `Plugin ${target.cmd} berhasil dipindahkan ke Trash.`
-        if (protectedList.length) rep += `\n\n🛡️ *Protected (Dilewati):* ${protectedList.join(', ')}`
-        if (notFoundList.length) rep += `\n❓ *Tidak Ditemukan:* ${notFoundList.join(', ')}`
+        let rep = result.message || `Plugin ${target.cmd} moved to trash.`
+        if (protectedList.length) rep += `\n\nProtected (skipped): ${protectedList.join(', ')}`
+        if (notFoundList.length) rep += `\nNot found: ${notFoundList.join(', ')}`
         return await m.arashirep(rep)
     }
 
-    // Multi-plugin (> 1) dan TANPA flag -y: Mode Konfirmasi & Preview
+    // Multi-plugin (> 1) dan TANPA flag -y: Mode Konfirmasi
     if (toDelete.length > 1 && !isForce) {
         pluginManager.setPendingConfirmation(m.sender, {
             targets: toDelete,
@@ -163,17 +163,13 @@ const uninstallPluginHandler = async (ctx, tokens) => {
             chatJid: ctx.jid
         })
 
-        const previewList = toDelete.map((item, i) => `${i + 1}. *${item.plugin.commands[0]}* ➔ \`${item.plugin.meta?.filename || path.basename(item.plugin.path)}\``).join('\n')
+        const previewList = toDelete.map((item, i) => `${i + 1}. *${item.plugin.commands[0]}* -> ${item.plugin.meta?.filename || path.basename(item.plugin.path)}`).join('\n')
 
-        let msg = `⚠️ *KONFIRMASI MULTI-DELETE PLUGIN*\n` +
-            `━━━━━━━━━━━━━━━━\n` +
-            `Ditemukan *${toDelete.length} plugin* yang akan dipindahkan ke Trash:\n` +
+        let msg = `Confirm Deletion (${toDelete.length} plugins):\n\n` +
             `${previewList}\n`
-        if (protectedList.length) msg += `\n🛡️ *Protected (Dilewati):* ${protectedList.join(', ')}`
-        if (notFoundList.length) msg += `\n❓ *Tidak Ditemukan:* ${notFoundList.join(', ')}`
-        msg += `\n━━━━━━━━━━━━━━━━\n` +
-            `Balas *Y* untuk lanjut hapus ke Trash, atau *batal* untuk batalkan.\n` +
-            `_(Kadaluarsa dalam 60 detik. Gunakan akhiran *-y* untuk hapus langsung tanpa konfirmasi)_`
+        if (protectedList.length) msg += `\nProtected (skipped): ${protectedList.join(', ')}`
+        if (notFoundList.length) msg += `\nNot found: ${notFoundList.join(', ')}`
+        msg += `\nReply with *Y* to confirm, or *cancel* to abort.\n(Expires in 60s. Use -y flag to bypass confirmation)`
         return await m.arashirep(msg)
     }
 
@@ -185,12 +181,11 @@ const uninstallPluginHandler = async (ctx, tokens) => {
     }
     if (menuManager?.buildMenu) menuManager.buildMenu()
 
-    let rep = `🗑️ *HASIL HAPUS PLUGIN*\n━━━━━━━━━━━━━━━━\n`
-    rep += `✅ Berhasil dipindahkan ke Trash (${successDeleted.length}):\n`
-    rep += successDeleted.map(i => `• *${i.plugin.commands[0]}* (${i.plugin.name})`).join('\n')
-    if (protectedList.length) rep += `\n\n🛡️ *Protected (Dilewati):* ${protectedList.join(', ')}`
-    if (notFoundList.length) rep += `\n❓ *Tidak Ditemukan:* ${notFoundList.join(', ')}`
-    rep += `\n━━━━━━━━━━━━━━━━\n💡 _Ketik *plugin restore <nama>* untuk mengembalikan._`
+    let rep = `Moved ${successDeleted.length} plugins to trash:\n`
+    rep += successDeleted.map(i => `• ${i.plugin.commands[0]} (${i.plugin.name})`).join('\n')
+    if (protectedList.length) rep += `\n\nProtected (skipped): ${protectedList.join(', ')}`
+    if (notFoundList.length) rep += `\nNot found: ${notFoundList.join(', ')}`
+    rep += `\n\nType .plugin r <command> to restore.`
     return await m.arashirep(rep)
 }
 
@@ -199,22 +194,19 @@ const trashListHandler = async (ctx) => {
     const trashList = await pluginManager.getTrashList()
 
     if (!trashList || !trashList.length) {
-        return await m.arashirep(`🗑️ *Recycle Bin (Trash) Kosong*\nBelum ada plugin yang tersimpan di Trash.`)
+        return await m.arashirep(`Trash is empty.`)
     }
 
     const itemsText = trashList.map((item, idx) => {
-        const dateStr = new Date(item.deletedAt).toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })
-        return `${idx + 1}. *${item.name}*\n   • Command: ${item.commands.join(', ')}\n   • File: \`${item.filename}\`\n   • Dihapus: ${dateStr}`
+        const dateStr = new Date(item.deletedAt).toLocaleString('en-US', { timeZone: 'Asia/Jakarta' })
+        return `${idx + 1}. *${item.name}*\n• Command: ${item.commands.join(', ')}\n• File: ${item.filename}\n• Deleted: ${dateStr}`
     }).join('\n\n')
 
-    const rep = `🗑️ *DAFTAR TRASH PLUGIN*\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `Total: *${trashList.length} plugin*\n\n` +
-        `${itemsText}\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `💡 *Menu Trash:*\n` +
-        `• *plugin restore <nama/command>* ➔ Restore ke bot\n` +
-        `• *plugin empty* ➔ Kosongkan Trash (hapus permanen)`
+    const rep = `Trash List (${trashList.length} plugins):\n\n` +
+        `${itemsText}\n\n` +
+        `*Commands:*\n` +
+        `• .plugin r <command> (restore to bot)\n` +
+        `• .plugin empty (delete permanently)`
     return await m.arashirep(rep)
 }
 
@@ -223,7 +215,7 @@ const restorePluginHandler = async (ctx, userParams) => {
     const { userCommand } = userParams
 
     if (!userCommand) {
-        return await m.arashirep(`Mau restore plugin apa sayang? Kasih nama command atau filenya yaa...\nContoh: *plugin restore tiktok* atau *plugin r test1*`)
+        return await m.arashirep(`Specify the plugin command or filename to restore.\nExample: .plugin r play`)
     }
 
     const result = await pluginManager.restorePlugin(userCommand)
@@ -238,9 +230,9 @@ const emptyTrashHandler = async (ctx) => {
     const count = await pluginManager.emptyTrash()
 
     if (!count) {
-        return await m.arashirep(`🗑️ Trash sudah kosong kok sayang.`)
+        return await m.arashirep(`Trash is already empty.`)
     }
-    return await m.arashirep(`🗑️ *Trash Dibersihkan!*\nSebanyak *${count} plugin* telah dihapus secara permanen.`)
+    return await m.arashirep(`Emptied trash. ${count} plugins permanently deleted.`)
 }
 
 const findPluginHandler = async (ctx, tokens) => {
@@ -249,8 +241,7 @@ const findPluginHandler = async (ctx, tokens) => {
 
     if (!keyword) {
         return await m.arashirep(
-            `🔍 Mau cari plugin apa sayang?\n` +
-            `Contoh: *plugin f brat* atau *plugin s tiktok*`
+            `Specify a search keyword.\nExample: .plugin s tiktok`
         )
     }
 
@@ -274,7 +265,7 @@ const findPluginHandler = async (ctx, tokens) => {
     }
 
     if (!matches.length) {
-        return await m.arashirep(`🔍 *Hasil Pencarian:*\nTidak ditemukan plugin dengan kata kunci *"${keyword}"*.`)
+        return await m.arashirep(`No plugins found matching "${keyword}".`)
     }
 
     const MAX_SHOW = 15
@@ -283,25 +274,22 @@ const findPluginHandler = async (ctx, tokens) => {
     const listText = showMatches.map((item, idx) => {
         const p = item.plugin
         const badges = []
-        if (p.config?.protected) badges.push("🛡️ protected")
-        if (p.config?.hidden || p.hidden || p.categories?.includes("example")) badges.push("👁️ hidden")
-        if (p.config?.bypassPrefix) badges.push("⚡ no-prefix")
+        if (p.config?.protected) badges.push("protected")
+        if (p.config?.hidden || p.hidden || p.categories?.includes("example")) badges.push("hidden")
+        if (p.config?.bypassPrefix) badges.push("no-prefix")
         const badgeStr = badges.length ? ` [${badges.join(", ")}]` : ""
 
         return `${idx + 1}. *${p.name}*${badgeStr}\n` +
-            `   • Command: ${p.commands.join(", ")}\n` +
-            `   • Kategori: ${p.categories.join(", ")}\n` +
-            `   • File: \`${item.filename}\``
+            `• Commands: ${p.commands.join(", ")}\n` +
+            `• Category: ${p.categories.join(", ")}\n` +
+            `• File: ${item.filename}`
     }).join("\n\n")
 
-    let rep = `🔍 *HASIL PENCARIAN PLUGIN* ("${keyword}")\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `Ditemukan *${matches.length} plugin*${matches.length > MAX_SHOW ? ` (menampilkan ${MAX_SHOW} teratas)` : ''}:\n\n` +
-        `${listText}\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `💡 *Tips Shortcut:*\n` +
-        `• *plugin g <cmd>* ➔ Ambil source code\n` +
-        `• *plugin d <cmd>* ➔ Hapus ke Trash`
+    let rep = `Search Results ("${keyword}") - ${matches.length} plugins${matches.length > MAX_SHOW ? ` (showing top ${MAX_SHOW})` : ''}:\n\n` +
+        `${listText}\n\n` +
+        `*Quick Actions:*\n` +
+        `• .plugin g <command> (get source)\n` +
+        `• .plugin d <command> (move to trash)`
 
     return await m.arashirep(rep)
 }
@@ -313,23 +301,19 @@ const hiddenPluginHandler = async (ctx) => {
     )
 
     if (!hiddenList.length) {
-        return await m.arashirep(`👁️ *Plugin Hidden Kosong*\nTidak ada plugin yang disembunyikan dari menu publik.`)
+        return await m.arashirep(`No hidden plugins found.`)
     }
 
     const listText = hiddenList.map((p, idx) => {
         const filename = p.meta?.filename || path.basename(p.path || "")
         return `${idx + 1}. *${p.name}*\n` +
-            `   • Command: ${p.commands.join(", ")}\n` +
-            `   • Kategori: ${p.categories.join(", ")}\n` +
-            `   • File: \`${filename}\``
+            `• Commands: ${p.commands.join(", ")}\n` +
+            `• Category: ${p.categories.join(", ")}\n` +
+            `• File: ${filename}`
     }).join("\n\n")
 
-    const rep = `👁️ *DAFTAR PLUGIN HIDDEN*\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `Total: *${hiddenList.length} plugin* (tidak muncul di menu publik):\n\n` +
-        `${listText}\n` +
-        `━━━━━━━━━━━━━━━━\n` +
-        `💡 *Tips:* Tambahkan properti \`config: { hidden: true }\` pada plugin untuk menyembunyikannya dari menu publik.`
+    const rep = `Hidden Plugins (${hiddenList.length} plugins):\n\n` +
+        `${listText}`
 
     return await m.arashirep(rep)
 }
@@ -338,11 +322,11 @@ const pluginInstallHandler = async (ctx, userParams) => {
     const { m, q, pluginManager, menuManager } = ctx
     const isReplacePlugin = userParams.userCommand === "-r"
 
-    if (!q) return await m.arashirep(`reply pesan plugin nya dulu yaa`)
+    if (!q) return await m.arashirep(`Reply to a plugin js file or code snippet to install.`)
 
     if (q.content === "documentMessage") {
         const isValidMime = q?.message?.documentMessage?.mimetype === "text/javascript"
-        if (!isValidMime) return await m.arashirep(`mime type file nya bukan javascript sayang`)
+        if (!isValidMime) return await m.arashirep(`File mimetype must be text/javascript.`)
         const buffer = await q.download("buffer")
         const response = await pluginManager.install(buffer, isReplacePlugin)
         const { ok, message } = response
@@ -358,13 +342,25 @@ const pluginInstallHandler = async (ctx, userParams) => {
         return await m.arashirep(message)
     }
 
-    return await m.arashirep(`reply nya musti dokumen js atau text code plugin nya yaa`)
+    return await m.arashirep(`Reply to a js document or message containing plugin code.`)
 }
 
 async function run(ctx) {
     if (!ctx.isOwner) return
-    const { text, m, pluginManager } = ctx
-    if (!text) return m.arashirep('haloo, ini plugin manager, mau ngapain sayang?')
+    const { text, m, command, pluginManager } = ctx
+
+    // Support langsung command .addplugin / .installplugin
+    if (command === "addplugin" || command === "installplugin") {
+        const tokens = (text || "").split(/[\s,]+/).filter(Boolean)
+        const isForce = tokens.includes("-r") || tokens.includes("-f")
+        return await pluginInstallHandler(ctx, {
+            userAction: isForce ? Action.INSTALL_FORCE : Action.INSTALL,
+            userCommand: isForce ? "-r" : tokens[0],
+            userAdditionalParam: tokens[1]
+        })
+    }
+
+    if (!text) return m.arashirep(description)
 
     const tokens = text.split(/[\s,]+/).filter(Boolean)
     const actionKey = tokens[0]?.toLowerCase()
@@ -395,7 +391,7 @@ async function run(ctx) {
     }
 
     if (userAction === Action.VIEW_PLUGIN_PROTECTED) {
-        const header = `ini daftar plugin protected nya sayang\n\n`
+        const header = `Protected Plugins:\n\n`
         const result = pluginManager.getProtectedPluginString()
         return await m.arashirep(header + result)
     }
@@ -423,7 +419,7 @@ async function run(ctx) {
     if (userAction === Action.CONFIRM_YES) {
         const handled = await pluginManager.processConfirmation(ctx)
         if (!handled) {
-            return await m.arashirep(`Tidak ada konfirmasi penghapusan plugin yang sedang aktif.`)
+            return await m.arashirep(`No pending plugin deletion confirmation.`)
         }
         return
     }
@@ -431,29 +427,34 @@ async function run(ctx) {
     if (userAction === Action.CONFIRM_NO) {
         if (pluginManager.hasPendingConfirmation(m.sender)) {
             pluginManager.clearPendingConfirmation(m.sender)
-            return await m.arashirep(`❌ *Penghapusan plugin dibatalkan.*`)
+            return await m.arashirep(`Plugin deletion cancelled.`)
         }
-        return await m.arashirep(`Tidak ada konfirmasi penghapusan plugin yang sedang aktif.`)
+        return await m.arashirep(`No pending plugin deletion confirmation.`)
     }
 
-    return await m.arashirep(`aku gak ngerti maksudnya, coba ketik *plugin -h* yaa`)
+    return await m.arashirep(`Unrecognized command. Type .plugin for usage.`)
 }
 
-const description = `haloo sayangg, ini plugin manager (v2.1.0), aku jelasin shortcut & caranya yaa\n\n` +
-    `• f / s [ find / search, cari plugin. Contoh: plugin f brat, plugin s tiktok ]\n` +
-    `• h [ hidden, intip daftar plugin yang disembunyikan dari menu publik ]\n` +
-    `• d / u [ del / uninstall, hapus plugin ke Trash (multi/single). Contoh: plugin d test1 test2 ]\n` +
-    `• t [ trash, liat isi tempat sampah / Recycle Bin ]\n` +
-    `• r [ restore, kembalikan plugin dari Trash. Contoh: plugin r test1 ]\n` +
-    `• empty [ kosongkan Recycle Bin secara permanen ]\n` +
-    `• g [ get, ambil source code plugin, tambah -t untuk teks ]\n` +
-    `• i [ install / add, reply file js atau teks code ]\n` +
-    `• p [ protected, liat daftar plugin protected ]`
+const description = `Manage bot plugins: install, delete, restore, search, and view status.\n\n` +
+    `*Usage:*\n` +
+    `• .plugin s <query> (search plugin by name/command/file)\n` +
+    `• .plugin g <command> [-t] (get plugin file or raw code with -t)\n` +
+    `• .plugin i (reply to a js file or code snippet to install)\n` +
+    `• .plugin d <command...> [-y] (delete plugin to trash)\n` +
+    `• .plugin t (list plugins in trash)\n` +
+    `• .plugin r <command> (restore plugin from trash)\n` +
+    `• .plugin empty (empty trash permanently)\n` +
+    `• .plugin p (view protected plugins)\n` +
+    `• .plugin h (view hidden plugins)\n\n` +
+    `*Example:*\n` +
+    `• .plugin s tiktok\n` +
+    `• .plugin g play -t\n` +
+    `• .plugin d test -y`
 
 const plugin = {
     run,
     name: "plugin manager",
-    commands: ["plugin", "plugins"],
+    commands: ["plugin", "plugins", "addplugin", "installplugin"],
     categories: ["owner"],
     description
 }

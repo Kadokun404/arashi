@@ -13,7 +13,19 @@ import { buttonSerialize } from "./button-serializer.js"
 import { quotedMessageSerialize } from "./quoted-serializer.js"
 
 // message utility import
-import { download, react, reply, arashirep } from "./messages-function-bind.js"
+import {
+    download,
+    react,
+    reply,
+    arashirep,
+    sendImage,
+    sendVideo,
+    sendVn,
+    sendAudio,
+    sendDocu,
+    sendSticker,
+    sendContact
+} from "./messages-function-bind.js"
 
 import { downloadMediaMessage, getContentType, isJidGroup, normalizeMessageContent } from "baileys"
 
@@ -78,7 +90,9 @@ const messageSerialize = (WAM, sock) => {
 
     // m.content
     /**@type { keyof proto.IMessage} */
-    const content = getContentType(WAM.message)
+    let content = getContentType(WAM.message)
+    if (!content && WAM.message?.eventMessage) content = "eventMessage"
+    if (!content && WAM.message?.eventInviteMessage) content = "eventInviteMessage"
     WAM.content = content
 
     // m.text
@@ -86,6 +100,9 @@ const messageSerialize = (WAM, sock) => {
     const text = WAM?.message?.conversation ||
         ct?.text ||
         ct?.caption ||
+        ct?.name ||
+        ct?.eventTitle ||
+        ct?.description ||
         ct?.message?.documentMessage?.caption ||
         ct?.message?.imageMessage?.caption ||
         ct?.message?.videoMessage?.caption ||
@@ -100,6 +117,16 @@ const messageSerialize = (WAM, sock) => {
     WAM.react = react
     WAM.reply = reply
     WAM.arashirep = arashirep
+    WAM.arashireply = arashirep
+
+    // helper media shortcuts
+    WAM.sendImage = sendImage
+    WAM.sendVideo = sendVideo
+    WAM.sendVn = sendVn
+    WAM.sendAudio = sendAudio
+    WAM.sendDocu = sendDocu
+    WAM.sendSticker = sendSticker
+    WAM.sendContact = sendContact
 
     //WAM.sock = sock
     Object.defineProperty(WAM, "sock", {

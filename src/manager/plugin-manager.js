@@ -538,7 +538,36 @@ class PluginManager {
     }
 }
 
+let _watchDebounce = null
+let _pluginWatcher = null
+
+export function startPluginWatcher() {
+    if (_pluginWatcher) return
+    try {
+        _pluginWatcher = fs.watch(allPaths.plugins, { recursive: true }, (eventType, filename) => {
+            if (!filename || !filename.endsWith(".js")) return
+            clearTimeout(_watchDebounce)
+            _watchDebounce = setTimeout(async () => {
+                console.log(`[PLUGIN-WATCHER] Terdeteksi perubahan pada ${filename}, auto reloading (r)...`)
+                const t0 = Date.now()
+                try {
+                    await pluginManager.init()
+                    const { menuManager } = await import("./menu-manager.js")
+                    if (menuManager?.buildMenu) menuManager.buildMenu()
+                    console.log(`[PLUGIN-WATCHER] Auto reload (r) berhasil (${Date.now() - t0} ms) • ${pluginManager.pluginArray.length} plugins, ${pluginManager.pluginMap.size} commands`)
+                } catch (e) {
+                    console.error(`[PLUGIN-WATCHER] Gagal auto reload:`, e)
+                }
+            }, 300)
+        })
+        console.log(`[PLUGIN-WATCHER] Auto-reload (r) aktif untuk direktori plugins`)
+    } catch (err) {
+        console.error(`[PLUGIN-WATCHER] Gagal mengaktifkan watcher:`, err)
+    }
+}
+
 const pluginManager = new PluginManager()
 await pluginManager.init()
+startPluginWatcher()
 
 export { pluginManager }

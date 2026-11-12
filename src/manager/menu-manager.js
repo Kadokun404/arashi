@@ -38,10 +38,18 @@ class MenuManager {
 
         // ===== 1. KUMPULKAN SETIAP PLUGIN PER KATEGORI (1 plugin = 1 baris, alias dalam kurung) =====
         pluginArray.forEach(plugin => {
-            const rawCommands = (plugin.commands || []).filter(Boolean)
+            // Sembunyikan plugin jika ada config hidden atau hidden=true
+            if (plugin?.config?.hidden || plugin?.hidden) return
+
+            // Filter command utilitas / reaction trigger yang tidak perlu tampil di menu
+            const EXCLUDED_CMDS = ["!", "!!", "$", "❌", "😋", "🤓"]
+            const rawCommands = (plugin.commands || []).filter(c => c && !EXCLUDED_CMDS.includes(c))
             if (!rawCommands.length) return
             const commands = [...new Set(rawCommands)]
-            const categories = plugin.categories || []
+
+            // Sembunyikan kategori 'example' dari menu publik
+            const categories = (plugin.categories || []).filter(c => c !== "example")
+            if (!categories.length) return
 
             const [mainCmd, ...aliases] = commands
             const line = aliases.length > 0
@@ -66,8 +74,8 @@ class MenuManager {
 
         // ===== 2. URUTKAN KATEGORI (prioritas + alfabetis) =====
         const PRIORITY_ORDER = [
-            "main", "owner", "system", "tools", "downloader",
-            "search", "ai", "maker", "group", "fun", "random", "info"
+            "main", "premium", "ai", "downloader", "search", "maker",
+            "tools", "group", "fun", "owner", "nsfw"
         ]
         const allCategories = Array.from(this.categoryMap.keys())
         const prioritized = PRIORITY_ORDER.filter(c => allCategories.includes(c))

@@ -3,7 +3,19 @@ import { contactStore } from "../store/contact-store.js";
 import { chatStore } from "../store/chat-store.js";
 import { memberLabelStore } from "../store/member-label-store.js";
 import { groupMetadataStore } from "../store/group-metadata-store.js";
-import { download, react, reply, del } from "./messages-function-bind.js";
+import {
+    download,
+    react,
+    reply,
+    del,
+    sendImage,
+    sendVideo,
+    sendVn,
+    sendAudio,
+    sendDocu,
+    sendSticker,
+    sendContact
+} from "./messages-function-bind.js";
 
 /**
  * @import {WAMessage, WAMessageKey, MessageWithContextInfo, WASocket, proto} from 'baileys'
@@ -29,25 +41,41 @@ const quotedMessageSerialize = (WAM, sock, messageStore) => {
         const participantJid = contextInfo?.participant
 
         // q.key
+        // q.fullMessage: FULL raw WAMessage asli (coba messageStore in-memory, lalu crmstore sqlite)
+        const fullMessage = messageStore?.getMessageSync?.(WAM.key?.remoteJid, contextInfo?.stanzaId) 
+
         /**@type {WAMessageKey} */
         const key = {
             id: contextInfo?.stanzaId,
             participant: participantJid,
             remoteJid: WAM.key?.remoteJid,
             fromMe: (areJidsSameUser(participantJid, sock?.user?.lid) ||
-                areJidsSameUser(participantJid, sock?.user?.id))
+                areJidsSameUser(participantJid, sock?.user?.id)),
+            isViewOnce: Boolean(fullMessage?.key?.isViewOnce || contextInfo?.isViewOnce)
         }
 
         // q.message
-        const message = quotedMessage
+        let message = quotedMessage
 
-        // q.fullMessage: FULL raw WAMessage asli (key, messageTimestamp, name,
-        // status, dst) hasil cari di cache makeInMemoryStore, pake remoteJid chat
-        // ini + stanzaId dari contextInfo. beda sama q.message yang cuma isi
-        // contextInfo.quotedMessage doang (kadang WA ngirim versi ringkas/beda
-        // dikit dari pesan aslinya pas nge-reply). bisa undefined kalau pesan
-        // aslinya belum/gak sempet ke-cache (misal bot baru restart)
-        const fullMessage = messageStore?.getMessageSync?.(WAM.key?.remoteJid, contextInfo?.stanzaId)
+        // Fallback jika quotedMessage dikirim kosong `{}` oleh WhatsApp atau jika raw message asli punya metadata lebih lengkap (misal faviconMMSMetadata)
+        if (contextInfo?.stanzaId) {
+            const stored = fullMessage?.message
+            if (stored && Object.keys(stored).length) {
+                if (!message || !Object.keys(message).length) {
+                    message = stored
+                } else if (stored.extendedTextMessage?.faviconMMSMetadata && !message.extendedTextMessage?.faviconMMSMetadata) {
+                    message = {
+                        ...stored,
+                        ...message,
+                        extendedTextMessage: {
+                            ...stored.extendedTextMessage,
+                            ...message.extendedTextMessage,
+                            faviconMMSMetadata: stored.extendedTextMessage.faviconMMSMetadata
+                        }
+                    }
+                }
+            }
+        }
 
         // q.chat
         const chat = chatStore.upsertAndGet({
@@ -82,13 +110,18 @@ const quotedMessageSerialize = (WAM, sock, messageStore) => {
 
         // q.content
         /**@type { keyof proto.IMessage} */
-        const content = getContentType(message)
+        let content = getContentType(message)
+        if (!content && message?.eventMessage) content = "eventMessage"
+        if (!content && message?.eventInviteMessage) content = "eventInviteMessage"
 
         // q.text
         const ct = message?.[content]
         const text = message?.conversation ||
             ct?.text ||
             ct?.caption ||
+            ct?.name ||
+            ct?.eventTitle ||
+            ct?.description ||
             ct?.message?.documentMessage?.caption ||
             ct?.message?.imageMessage?.caption ||
             ct?.message?.videoMessage?.caption ||
@@ -106,7 +139,12 @@ const quotedMessageSerialize = (WAM, sock, messageStore) => {
             sender: contact?.lid,
             text,
             group,
-            name: contact?.name
+            name: contact?.name,
+            fakeObj: {
+                key,
+                message,
+                participant: participantJid
+            }
         }
 
         // buat eval evalan
@@ -114,6 +152,15 @@ const quotedMessageSerialize = (WAM, sock, messageStore) => {
         q.react = react
         q.reply = reply
         q.delete = del
+
+        // helper media shortcuts
+        q.sendImage = sendImage
+        q.sendVideo = sendVideo
+        q.sendVn = sendVn
+        q.sendAudio = sendAudio
+        q.sendDocu = sendDocu
+        q.sendSticker = sendSticker
+        q.sendContact = sendContact
 
         //WAM.sock = sock
         Object.defineProperty(q, "sock", {

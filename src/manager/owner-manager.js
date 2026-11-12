@@ -6,11 +6,14 @@ const success = (message) => ({ ok: true, message })
 
 class OwnerManager {
     baseOwnerSet = new Set()
+    baseTeleSet = new Set()
 
     constructor() {
         const baseOwners = Array.isArray(config.devNumb) ? config.devNumb : [config.devNumb]
         baseOwners.filter(Boolean).forEach(numb => this.baseOwnerSet.add(`${numb}@s.whatsapp.net`))
-        console.log(`loaded ${this.baseOwnerSet.size} base owner, ${trustDb.data.length} trusted user (json db)`)
+        const teleOwners = Array.isArray(config.devTeleId) ? config.devTeleId : [config.devTeleId]
+        teleOwners.filter(Boolean).forEach(id => this.baseTeleSet.add(String(id)))
+        console.log(`loaded ${this.baseOwnerSet.size} base owner, ${this.baseTeleSet.size} base tele owner, ${trustDb.data.length} trusted user (json db)`)
     }
 
     isBaseOwner(pn) {
@@ -27,6 +30,8 @@ class OwnerManager {
     isOwner(contact) {
         if (!contact) return false
         const normalized = typeof contact === "string" ? { pn: contact, lid: undefined } : contact
+        if (normalized.teleId && this.baseTeleSet.has(String(normalized.teleId))) return true
+        if (typeof contact === "string" && this.baseTeleSet.has(String(contact))) return true
         if (this.isBaseOwner(normalized.pn)) return true
         return this.isTrusted(normalized)
     }

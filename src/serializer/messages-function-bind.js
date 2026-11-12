@@ -3,9 +3,14 @@
  */
 import { downloadMediaMessage } from "baileys"
 import crypto from "crypto"
+import fs from "fs"
+import path from "path"
+import { themeManager } from "#manager/theme-manager.js"
+import { config } from "#root/config.js"
 
 const BOT_TITLE_DESC = "Arashi"
-const BOT_LINK = ""
+const BOT_LINK = "https://arashi.kadokun.com"
+const THUMB_PATH = path.join(process.cwd(), "assets", "menu-thumbnail.jpg")
 const PFP_CACHE_TTL = 10 * 60 * 1000 // 10 menit
 
 const FALLBACK_THUMBNAIL = Buffer.from(
@@ -30,6 +35,26 @@ async function getProfileThumbnail(sock, jid) {
         pfpCache.set(jid, { buffer: null, time: Date.now() })
         return null
     }
+}
+
+/**
+ * Normalisasi input media menjadi bentuk yang didukung Baileys
+ * (Buffer, string path lokal, string URL http/https, atau object { url })
+ * @param {any} input
+ * @returns {any}
+ */
+function toBaileysMedia(input) {
+    if (!input) return input
+    if (Buffer.isBuffer(input) || (input instanceof Uint8Array)) return Buffer.from(input)
+    if (typeof input === "string") {
+        if (input.startsWith("http://") || input.startsWith("https://")) {
+            return { url: input }
+        }
+        if (fs.existsSync(input)) {
+            return fs.readFileSync(input)
+        }
+    }
+    return input
 }
 
 /**
@@ -68,37 +93,108 @@ function reply(text) {
     }, { quoted: this })
 }
 
-async function arashirep(text) {
+async function arashirep(text, options = {}) {
     /**@type {WASocket}  */
     const sock = this.sock
 
     /** @type {WAMessage}*/
     const m = this
 
+    let bodyText = text
+    let opts = options || {}
+    if (typeof text === "object" && text !== null && !Array.isArray(text) && !Buffer.isBuffer(text)) {
+        opts = { ...text, ...options }
+        bodyText = opts.text || opts.caption || opts.body || ""
+    }
+    bodyText = String(bodyText ?? "")
+
     const jid = m.key.remoteJid
     const senderJid = m.sender || m.key.participant || m.key.remoteJid
-    const thumb = (await getProfileThumbnail(sock, senderJid)) || FALLBACK_THUMBNAIL
-    const body = String(text).includes(BOT_LINK) ? text : `${BOT_LINK}\n\n${text}`
+
+    // Ambil theme data (hanya untuk URL & Description)
+    const theme = themeManager?.getData?.() || {}
+    const themeExt = theme?.message?.extendedTextMessage || {}
+
+    // Resolusi URL: opts.url -> theme.replyUrl -> theme.url -> config.menuUrl -> BOT_LINK
+    const targetUrl = opts.url || theme.replyUrl || theme.url || config.menuUrl || BOT_LINK
+
+    // Resolusi Deskripsi: opts.desc / opts.description -> theme.replyDescription -> theme.description -> BOT_TITLE_DESC
+    const targetDesc = opts.desc || opts.description || theme.replyDescription || theme.description || BOT_TITLE_DESC
+
+    // Judul WAJIB nama user (tidak boleh diubah/dioverride oleh tema)
+    const targetTitle = m.contact?.name || m.pushName || "User"
+
+    // Thumbnail WAJIB foto profil (pp) user (JANGAN pakai thumbnail menu/tema)
+    let thumb = opts.thumb || opts.thumbnail || opts.jpegThumbnail
+    if (!thumb) {
+        thumb = (await getProfileThumbnail(sock, senderJid)) || FALLBACK_THUMBNAIL
+    } else if (typeof thumb === "string") {
+        if (thumb.startsWith("http://") || thumb.startsWith("https://")) {
+            try {
+                const res = await fetch(thumb)
+                if (res.ok) thumb = Buffer.from(await res.arrayBuffer())
+            } catch {}
+        } else if (fs.existsSync(thumb)) {
+            thumb = fs.readFileSync(thumb)
+        } else {
+            try { thumb = Buffer.from(thumb, "base64") } catch {}
+        }
+    }
+
+    // Format body: cantumkan targetUrl di depan bila belum ada
+    const body = targetUrl && !bodyText.includes(targetUrl) ? `${targetUrl}\n\n${bodyText}` : bodyText
+
+    // JANGAN inherit thumbnailDirectPath/mediaKey dari menu theme agar WA menampilkan pp user
+    const ext = {
+        text: body,
+        matchedText: targetUrl,
+        title: targetTitle,
+        description: targetDesc,
+        previewType: opts.previewType ?? 0,
+        contextInfo: {
+            stanzaId: m.key.id,
+            participant: m.key.participant || m.key.remoteJid,
+            quotedMessage: m.message,
+            ...(opts.contextInfo || {})
+        }
+    }
+
+    // Opsional pasang favicon jika ada di tema
+    if (themeExt.faviconMMSMetadata) {
+        ext.faviconMMSMetadata = themeExt.faviconMMSMetadata
+    }
+
+    if (thumb && thumb.length > 0) {
+        ext.jpegThumbnail = Buffer.isBuffer(thumb) ? thumb : Buffer.from(thumb)
+    }
+
+    if (opts.renderLargerThumbnail !== undefined) {
+        ext.renderLargerThumbnail = Boolean(opts.renderLargerThumbnail)
+    }
+
+    if (opts.showAdAttribution !== undefined) {
+        ext.contextInfo.showAdAttribution = Boolean(opts.showAdAttribution)
+    }
+
+    if (opts.quoted === false) {
+        delete ext.contextInfo.quotedMessage
+        delete ext.contextInfo.stanzaId
+        delete ext.contextInfo.participant
+    } else if (opts.quoted && typeof opts.quoted === "object") {
+        ext.contextInfo.quotedMessage = opts.quoted.message || opts.quoted
+        ext.contextInfo.stanzaId = opts.quoted.key?.id || m.key.id
+        ext.contextInfo.participant = opts.quoted.key?.participant || opts.quoted.key?.remoteJid || m.key.participant
+    }
 
     return await sock.relayMessage(jid, {
-        extendedTextMessage: {
-            text: body,
-            title: m.contact?.name || BOT_TITLE_DESC,
-            description: BOT_TITLE_DESC,
-            matchedText: BOT_LINK,
-            previewType: 0,
-            jpegThumbnail: thumb,
-            contextInfo: {
-                stanzaId: m.key.id,
-                participant: m.key.participant || m.key.remoteJid,
-                quotedMessage: m.message
-            }
-        },
+        extendedTextMessage: ext,
         messageContextInfo: {
             messageSecret: crypto.randomBytes(32)
         }
     }, {})
 }
+
+const arashireply = arashirep
 
 function del () {
     /**@type {WASocket}  */
@@ -111,4 +207,181 @@ function del () {
     })
 }
 
-export { download, react, reply, arashirep, del }
+// ==================== HELPER SEND MEDIA SHORTCUTS ====================
+
+/**
+ * Kirim Gambar langsung ke chat
+ * @param {Buffer|string|object} image - buffer, file path, atau url
+ * @param {string|object} [captionOrOptions] - teks caption atau object options
+ * @param {object} [extraOpts] - options tambahan seperti quoted, mentions
+ */
+function sendImage(image, captionOrOptions = "", extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const imgPayload = toBaileysMedia(image)
+
+    let message = { image: imgPayload }
+    let options = { quoted: this, ...extraOpts }
+
+    if (typeof captionOrOptions === "string") {
+        if (captionOrOptions) message.caption = captionOrOptions
+    } else if (captionOrOptions && typeof captionOrOptions === "object") {
+        message = { ...message, ...captionOrOptions }
+        options = { ...options, ...captionOrOptions }
+    }
+
+    return sock.sendMessage(targetJid, message, options)
+}
+
+/**
+ * Kirim Video langsung ke chat
+ * @param {Buffer|string|object} video
+ * @param {string|object} [captionOrOptions]
+ * @param {object} [extraOpts]
+ */
+function sendVideo(video, captionOrOptions = "", extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const vidPayload = toBaileysMedia(video)
+
+    let message = { video: vidPayload }
+    let options = { quoted: this, ...extraOpts }
+
+    if (typeof captionOrOptions === "string") {
+        if (captionOrOptions) message.caption = captionOrOptions
+    } else if (captionOrOptions && typeof captionOrOptions === "object") {
+        message = { ...message, ...captionOrOptions }
+        options = { ...options, ...captionOrOptions }
+    }
+
+    return sock.sendMessage(targetJid, message, options)
+}
+
+/**
+ * Kirim Voice Note (PTT) langsung ke chat
+ * @param {Buffer|string|object} audio - audio buffer atau file
+ * @param {object} [extraOpts]
+ */
+function sendVn(audio, extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const audPayload = toBaileysMedia(audio)
+
+    const message = {
+        audio: audPayload,
+        mimetype: "audio/ogg; codecs=opus",
+        ptt: true,
+        ...extraOpts
+    }
+
+    return sock.sendMessage(targetJid, message, { quoted: this, ...extraOpts })
+}
+
+/**
+ * Kirim Audio biasa / musik langsung ke chat
+ * @param {Buffer|string|object} audio
+ * @param {object} [extraOpts]
+ */
+function sendAudio(audio, extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const audPayload = toBaileysMedia(audio)
+
+    const message = {
+        audio: audPayload,
+        mimetype: extraOpts.mimetype || "audio/mp4",
+        ptt: false,
+        ...extraOpts
+    }
+
+    return sock.sendMessage(targetJid, message, { quoted: this, ...extraOpts })
+}
+
+/**
+ * Kirim Dokumen / File apapun langsung ke chat
+ * @param {Buffer|string|object} doc - buffer file
+ * @param {string|object} [fileNameOrOpts="document"] - nama file atau options
+ * @param {string} [mimetype="application/octet-stream"]
+ * @param {object} [extraOpts]
+ */
+function sendDocu(doc, fileNameOrOpts = "document", mimetype = "application/octet-stream", extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const docPayload = toBaileysMedia(doc)
+
+    let message = { document: docPayload, mimetype }
+    let options = { quoted: this, ...extraOpts }
+
+    if (typeof fileNameOrOpts === "string") {
+        message.fileName = fileNameOrOpts
+    } else if (fileNameOrOpts && typeof fileNameOrOpts === "object") {
+        message = { ...message, ...fileNameOrOpts }
+        options = { ...options, ...fileNameOrOpts }
+    }
+
+    return sock.sendMessage(targetJid, message, options)
+}
+
+/**
+ * Kirim Stiker langsung ke chat
+ * @param {Buffer|string|object} sticker - webp sticker buffer atau file
+ * @param {object} [extraOpts]
+ */
+function sendSticker(sticker, extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const stkPayload = toBaileysMedia(sticker)
+
+    const message = {
+        sticker: stkPayload,
+        ...extraOpts
+    }
+
+    return sock.sendMessage(targetJid, message, { quoted: this, ...extraOpts })
+}
+
+/**
+ * Kirim Kontak WhatsApp langsung ke chat
+ * @param {string} jidUser - jid atau nomor telepon kontak
+ * @param {string} [displayName="User"] - nama kontak
+ * @param {object} [extraOpts]
+ */
+function sendContact(jidUser, displayName = "User", extraOpts = {}) {
+    const sock = this.sock
+    const targetJid = this.key?.remoteJid
+    const number = String(jidUser).replace(/[^0-9]/g, "")
+
+    const vcard =
+        "BEGIN:VCARD\n" +
+        "VERSION:3.0\n" +
+        `FN:${displayName}\n` +
+        `ORG:Arashi Contact;\n` +
+        `TEL;type=CELL;type=VOICE;waid=${number}:+${number}\n` +
+        "END:VCARD"
+
+    const message = {
+        contacts: {
+            displayName,
+            contacts: [{ vcard }]
+        },
+        ...extraOpts
+    }
+
+    return sock.sendMessage(targetJid, message, { quoted: this, ...extraOpts })
+}
+
+export {
+    download,
+    react,
+    reply,
+    arashirep,
+    arashireply,
+    del,
+    sendImage,
+    sendVideo,
+    sendVn,
+    sendAudio,
+    sendDocu,
+    sendSticker,
+    sendContact
+}
